@@ -2,7 +2,13 @@
    Ejecutar:  bun run scripts/pruebas.ts                                  */
 
 import { finTurno, formatHoras, formatMinutos, inicioSemana, instanteLocal } from '../lib/fechas'
-import { agruparJornadas, minutosTurno, turnosSinFichar } from '../lib/jornada'
+import {
+  agruparJornadas,
+  desviosDelDia,
+  marcarDesvios,
+  minutosTurno,
+  turnosSinFichar,
+} from '../lib/jornada'
 import { objetivoPeriodoMin, proyectar } from '../lib/proyeccion'
 import { diasAusenciaEnPeriodo, resumenVacaciones } from '../lib/ausencias'
 import type { Ausencia, Fichaje, Turno } from '../lib/types'
@@ -344,6 +350,130 @@ console.log('\nTurnos pasados sin fichar')
     TZ,
   )
   comprobar('solo el martes', sinFichar.map((x) => x.fecha), ['2026-09-08'])
+}
+
+console.log('\nDesvíos sobre el horario planificado')
+{
+  // Turno 09:00–17:00 en Madrid (verano = UTC+2).
+  const turno = t('2026-09-07', '09:00', '17:00')
+  const ahora = new Date('2026-09-09T06:00:00Z')
+
+  const puntual = desviosDelDia(
+    agruparJornadas([f('entrada', '2026-09-07T07:05:00Z'), f('salida', '2026-09-07T14:58:00Z')], ahora, TZ),
+    [turno],
+    10,
+    TZ,
+  )
+  comprobar('dentro del margen no hay desvío', puntual.length, 0)
+
+  const tarde = desviosDelDia(
+    agruparJornadas([f('entrada', '2026-09-07T07:35:00Z'), f('salida', '2026-09-07T15:00:00Z')], ahora, TZ),
+    [turno],
+    10,
+    TZ,
+  )
+  comprobar('entró 35 min tarde', tarde.map((d) => [d.tipo, d.minutos, d.prevista]), [
+    ['entrada_tarde', 35, '09:00'],
+  ])
+
+  const pronto = desviosDelDia(
+    agruparJornadas([f('entrada', '2026-09-07T06:00:00Z'), f('salida', '2026-09-07T13:00:00Z')], ahora, TZ),
+    [turno],
+    10,
+    TZ,
+  )
+  comprobar('entró y salió antes de hora', pronto.map((d) => d.tipo), [
+    'entrada_pronto',
+    'salida_pronto',
+  ])
+  comprobar('una hora de más al entrar', pronto[0].minutos, 60)
+
+  const tardeSalida = desviosDelDia(
+    agruparJornadas([f('entrada', '2026-09-07T07:00:00Z'), f('salida', '2026-09-07T16:30:00Z')], ahora, TZ),
+    [turno],
+    10,
+    TZ,
+  )
+  comprobar('salió 90 min después', tardeSalida.map((d) => [d.tipo, d.minutos]), [
+    ['salida_tarde', 90],
+  ])
+
+  const sinTurno = desviosDelDia(
+    agruparJornadas([f('entrada', '2026-09-07T04:00:00Z'), f('salida', '2026-09-07T13:00:00Z')], ahora, TZ),
+    [],
+    10,
+    TZ,
+  )
+  comprobar('sin turno no se juzga el horario', sinTurno.length, 0)
+
+  const cancelado = desviosDelDia(
+    agruparJornadas([f('entrada', '2026-09-07T04:00:00Z'), f('salida', '2026-09-07T13:00:00Z')], ahora, TZ),
+    [{ ...turno, estado: 'cancelado' }],
+    10,
+    TZ,
+  )
+  comprobar('un turno cancelado no genera desvío', cancelado.length, 0)
+
+  // Jornada abierta hoy: la entrada sí se juzga, la salida todavía no existe.
+  const enCurso = new Date('2026-09-09T12:00:00Z')
+  const abierta = desviosDelDia(
+    agruparJornadas([f('entrada', '2026-09-09T08:00:00Z')], enCurso, TZ),
+    [t('2026-09-09', '09:00', '17:00')],
+    10,
+    TZ,
+  )
+  comprobar('solo el desvío de entrada', abierta.map((d) => d.tipo), ['entrada_tarde'])
+
+  // Dos jornadas el mismo día contra un solo turno: un desvío de entrada
+  // (la primera) y uno de salida (la última), no cuatro.
+  const dosJornadas = desviosDelDia(
+    agruparJornadas(
+      [
+        f('entrada', '2026-09-07T07:40:00Z'),
+        f('salida', '2026-09-07T10:00:00Z'),
+        f('entrada', '2026-09-07T11:00:00Z'),
+        f('salida', '2026-09-07T14:00:00Z'),
+      ],
+      ahora,
+      TZ,
+    ),
+    [turno],
+    10,
+    TZ,
+  )
+  comprobar('dos jornadas, dos desvíos', dosJornadas.map((d) => [d.tipo, d.minutos]), [
+    ['entrada_tarde', 40],
+    ['salida_pronto', 60],
+  ])
+
+  const dosMarcadas = marcarDesvios(
+    agruparJornadas(
+      [
+        f('entrada', '2026-09-07T07:40:00Z'),
+        f('salida', '2026-09-07T10:00:00Z'),
+        f('entrada', '2026-09-07T11:00:00Z'),
+        f('salida', '2026-09-07T14:00:00Z'),
+      ],
+      ahora,
+      TZ,
+    ),
+    [turno],
+    10,
+    TZ,
+  )
+  comprobar(
+    'cada anomalía en su jornada',
+    dosMarcadas.map((j) => j.anomalias),
+    [['entrada_tarde'], ['salida_pronto']],
+  )
+
+  const marcadas = marcarDesvios(
+    agruparJornadas([f('entrada', '2026-09-07T07:35:00Z'), f('salida', '2026-09-07T15:00:00Z')], ahora, TZ),
+    [turno],
+    10,
+    TZ,
+  )
+  comprobar('la anomalía llega a la jornada', marcadas[0].anomalias, ['entrada_tarde'])
 }
 
 console.log(`\n${total - fallos}/${total} comprobaciones correctas`)

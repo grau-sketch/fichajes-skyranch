@@ -443,6 +443,8 @@ export function crearEmpleadoDemo(
     centro_id: datos.centro_id || null,
     horas_semana: datos.horas_semana,
     dias_vacaciones: 30,
+    fecha_nacimiento: null,
+    telefono: null,
     activo: true,
   }
   return {
@@ -482,6 +484,78 @@ export function guardarEmpleadoDemo(
       ),
     },
     mensaje: 'Empleado actualizado',
+  }
+}
+
+/**
+ * Ficha completa de una persona. Reproduce `guardarPersona`: mismas
+ * validaciones y el mismo aviso cuando el nombre cambia, porque cambiar el
+ * nombre cambia con qué se entra.
+ */
+export function guardarPersonaDemo(
+  e: EstadoDemo,
+  datos: {
+    id: string
+    nombre: string
+    rol: Rol
+    centro_id: string
+    horas_semana: number
+    dias_vacaciones: number
+    fecha_nacimiento: string
+    telefono: string
+    activo: boolean
+  },
+): Resultado {
+  const persona = e.perfiles.find((p) => p.id === datos.id)
+  if (!persona) return { ok: false, error: 'No se encuentra a esa persona' }
+  if (!nombreValido(datos.nombre)) return { ok: false, error: 'Escribe el nombre y el apellido' }
+  if (datos.horas_semana < 0 || datos.horas_semana > 60) {
+    return { ok: false, error: 'Las horas semanales deben estar entre 0 y 60' }
+  }
+  if (datos.dias_vacaciones < 0 || datos.dias_vacaciones > 60) {
+    return { ok: false, error: 'Los días de vacaciones deben estar entre 0 y 60' }
+  }
+  if (datos.fecha_nacimiento && !/^\d{4}-\d{2}-\d{2}$/.test(datos.fecha_nacimiento)) {
+    return { ok: false, error: 'La fecha de nacimiento no es válida' }
+  }
+
+  const cambiaNombre = usuarioDeNombre(persona.nombre) !== usuarioDeNombre(datos.nombre)
+  if (
+    cambiaNombre &&
+    e.perfiles.some(
+      (p) => p.id !== datos.id && usuarioDeNombre(p.nombre) === usuarioDeNombre(datos.nombre),
+    )
+  ) {
+    return {
+      ok: false,
+      error: `Ya hay alguien que entra como "${datos.nombre}". Añade el segundo apellido.`,
+    }
+  }
+
+  return {
+    ok: true,
+    estado: {
+      ...e,
+      perfiles: e.perfiles.map((p) =>
+        p.id === datos.id
+          ? {
+              ...p,
+              nombre: datos.nombre,
+              email: accesoDeNombre(datos.nombre),
+              rol: datos.rol,
+              centro_id: datos.centro_id || null,
+              horas_semana: datos.horas_semana,
+              dias_vacaciones: datos.dias_vacaciones,
+              fecha_nacimiento: datos.fecha_nacimiento || null,
+              telefono: datos.telefono || null,
+              activo: datos.activo,
+            }
+          : p,
+      ),
+    },
+    mensaje: cambiaNombre
+      ? `Guardado. Ojo: ${datos.nombre} entra ahora escribiendo ese nombre nuevo.`
+      : 'Guardado',
   }
 }
 

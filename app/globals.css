@@ -293,7 +293,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
   outline-offset: 1px;
 }
 .campos { display: grid; gap: 14px; }
-.campos.dos { grid-template-columns: 1fr 1fr; }
+.campos.dos { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+/* En un móvil estrecho dos columnas no caben: un input de fecha tiene un
+   ancho mínimo propio y desbordaba la tarjeta. */
+@media (max-width: 420px) {
+  .campos.dos { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* --- Etiquetas ----------------------------------------------------------- */
 .pill {
@@ -352,6 +357,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
   text-align: center;
 }
 .metricas > div + div { border-left: 1px solid var(--linea); }
+/* Cuatro cifras no caben en una fila de móvil: se parten en 2×2. */
+.metricas.cuatro { grid-template-columns: repeat(2, 1fr); }
+.metricas.cuatro > div:nth-child(odd) { border-left: 0; }
+.metricas.cuatro > div:nth-child(n + 3) { border-top: 1px solid var(--linea); }
 .metricas .v {
   font-size: 22px;
   font-weight: 650;
@@ -389,6 +398,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
   color: inherit;
 }
 .item:first-child { padding-top: 0; }
+
+/* Fila de lista que abre una ficha. */
+.item.pulsable {
+  text-decoration: none;
+  margin: 0 -10px;
+  padding-left: 10px;
+  padding-right: 10px;
+  border-radius: var(--r-s);
+  transition: background-color 0.15s var(--curva);
+}
+.item.pulsable:hover { background: var(--superficie-2); }
+.item.pulsable:active { background: var(--linea-fuerte); }
+.item.pulsable::after {
+  content: '\203A';
+  color: var(--texto-3);
+  font-size: 20px;
+  line-height: 1;
+}
 
 .tabla-scroll {
   overflow-x: auto;
@@ -827,6 +854,8 @@ tfoot th { border-bottom: none; font-weight: 600; color: var(--texto); }
   .rejilla.dos { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .rejilla.dos-uno { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
   .metricas.cuatro { grid-template-columns: repeat(4, 1fr); }
+  .metricas.cuatro > div + div { border-left: 1px solid var(--linea); }
+  .metricas.cuatro > div { border-top: 0; }
 
   /* Tablas con aire, sin scroll horizontal si cabe */
   .consola table { font-size: 14px; }
@@ -912,3 +941,20 @@ tfoot th { border-bottom: none; font-weight: 600; color: var(--texto); }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Resumen de un <details> plegable. */
+.desplegable {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  list-style: none;
+}
+.desplegable::-webkit-details-marker { display: none; }
+.desplegable::before {
+  content: '\203A';
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--texto-3);
+  transition: transform 0.15s var(--curva);
+}
+details[open] > .desplegable::before { transform: rotate(90deg); }

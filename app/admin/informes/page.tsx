@@ -4,7 +4,7 @@ import BloqueInforme, { type BloqueDatos } from '@/components/BloqueInforme'
 import { corregirFichaje } from '@/app/actions'
 import { ETIQUETA_TIPO, TIPOS_FICHAJE, TZ } from '@/lib/constants'
 import { fechaLocal, finMes, formatHoras, hoyLocal, inicioMes, sumarDias } from '@/lib/fechas'
-import { agruparJornadas, minutosTurno, turnosSinFichar } from '@/lib/jornada'
+import { agruparJornadas, marcarDesvios, minutosTurno, turnosSinFichar } from '@/lib/jornada'
 import { requerirGestor } from '@/lib/sesion'
 import { createClient } from '@/lib/supabase/server'
 import { diasAusentes } from '@/lib/ausencias'
@@ -77,10 +77,13 @@ export default async function Informes({
   const bloques: BloqueDatos[] = perfiles
     .filter((p) => (empleadoFiltro ? p.id === empleadoFiltro : porEmpleado.has(p.id) || turnos.some((t) => t.empleado_id === p.id)))
     .map((p) => {
-      const jornadas = agruparJornadas(porEmpleado.get(p.id) ?? [], new Date(), TZ).filter(
-        (j) => j.fecha >= desde && j.fecha <= hasta,
-      )
       const susTurnos = turnos.filter((t) => t.empleado_id === p.id && t.estado !== 'cancelado')
+      const jornadas = marcarDesvios(
+        agruparJornadas(porEmpleado.get(p.id) ?? [], new Date(), TZ).filter(
+          (j) => j.fecha >= desde && j.fecha <= hasta,
+        ),
+        susTurnos,
+      )
       const susFichajes = (porEmpleado.get(p.id) ?? []).filter((f) => {
         const dia = fechaLocal(f.ts, TZ)
         return dia >= desde && dia <= hasta

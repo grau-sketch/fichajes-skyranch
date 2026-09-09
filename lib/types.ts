@@ -20,6 +20,8 @@ export type Perfil = {
   horas_semana: number
   /** Días naturales de vacaciones al año. */
   dias_vacaciones: number
+  fecha_nacimiento: string | null
+  telefono: string | null
   activo: boolean
 }
 

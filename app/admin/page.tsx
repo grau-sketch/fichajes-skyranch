@@ -1,8 +1,13 @@
 import AjustePin from '@/components/AjustePin'
 import PanelEquipo, { type FilaEquipo } from '@/components/PanelEquipo'
-import { TOLERANCIA_ENTRADA_MIN, TOLERANCIA_SALIDA_MIN, TZ } from '@/lib/constants'
+import {
+  TOLERANCIA_DESVIO_MIN,
+  TOLERANCIA_ENTRADA_MIN,
+  TOLERANCIA_SALIDA_MIN,
+  TZ,
+} from '@/lib/constants'
 import { finTurno, hoyLocal, instanteLocal, sumarDias } from '@/lib/fechas'
-import { agruparJornadas } from '@/lib/jornada'
+import { agruparJornadas, desviosDelDia } from '@/lib/jornada'
 import { requerirGestor } from '@/lib/sesion'
 import { createClient } from '@/lib/supabase/server'
 import { diasAusentes } from '@/lib/ausencias'
@@ -94,6 +99,10 @@ export default async function Admin() {
       (f) => f.dentro_radio === false && f.ts >= `${hoy}T00:00:00`,
     )
 
+    // Solo el desvío de hoy: el panel es el estado de ahora, y el repaso de
+    // días anteriores va en la ficha de la persona y en el informe.
+    const desvios = desviosDelDia(deHoy, turnosHoy, TOLERANCIA_DESVIO_MIN, TZ)
+
     return {
       id: p.id,
       nombre: p.nombre,
@@ -104,6 +113,7 @@ export default async function Admin() {
       sinEntrada: Boolean(sinEntrada),
       jornadaColgada: jornadaColgada ?? null,
       fueraDeRadio,
+      desvios,
     }
   })
 

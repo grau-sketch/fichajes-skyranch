@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import AvisoBanner from '@/components/AvisoBanner'
-import { ETIQUETA_ESTADO, type EstadoPresencia } from '@/lib/constants'
+import { ETIQUETA_ANOMALIA, ETIQUETA_ESTADO, type EstadoPresencia } from '@/lib/constants'
 import { formatFechaCorta, formatMinutos, horaLocal } from '@/lib/fechas'
-import type { Jornada } from '@/lib/jornada'
+import type { Desvio, Jornada } from '@/lib/jornada'
 import type { Aviso, Turno } from '@/lib/types'
 
 export type FilaEquipo = {
@@ -15,6 +15,8 @@ export type FilaEquipo = {
   sinEntrada: boolean
   jornadaColgada: Jornada | null
   fueraDeRadio: boolean
+  /** Entradas y salidas fuera del horario del turno. */
+  desvios: Desvio[]
 }
 
 /**
@@ -46,7 +48,9 @@ export default function PanelEquipo({
 }) {
   const dentro = filas.filter((f) => f.estado === 'dentro').length
   const enPausa = filas.filter((f) => f.estado === 'pausa').length
-  const incidencias = filas.filter((f) => f.sinEntrada || f.jornadaColgada || f.fueraDeRadio)
+  const incidencias = filas.filter(
+    (f) => f.sinEntrada || f.jornadaColgada || f.fueraDeRadio || f.desvios.length > 0,
+  )
 
   return (
     <>
@@ -107,6 +111,15 @@ export default function PanelEquipo({
                     Ha fichado hoy fuera del radio del centro
                   </span>
                 )}
+                {f.desvios.map((d, i) => (
+                  <span
+                    key={`${d.tipo}-${i}`}
+                    className="pequeno"
+                    style={{ color: 'var(--aviso)' }}
+                  >
+                    {ETIQUETA_ANOMALIA[d.tipo]}: {d.minutos} min sobre las {d.prevista}
+                  </span>
+                ))}
               </div>
             ))}
           </div>
@@ -123,7 +136,7 @@ export default function PanelEquipo({
         ) : (
           <div className="lista">
             {filas.map((f) => (
-              <div key={f.id} className="item">
+              <ItemPersona key={f.id} href={esAdmin ? `${base}/admin/personas/${f.id}` : null}>
                 <span
                   className={`pill ${
                     f.estado === 'dentro' ? 'ok' : f.estado === 'pausa' ? 'aviso' : ''
@@ -149,7 +162,7 @@ export default function PanelEquipo({
                 <span className="mono" style={{ fontWeight: 600 }}>
                   {formatMinutos(f.minutosHoy)}
                 </span>
-              </div>
+              </ItemPersona>
             ))}
           </div>
         )}
@@ -180,5 +193,18 @@ export default function PanelEquipo({
         )}
       </div>
     </>
+  )
+}
+
+/**
+ * La fila del equipo abre la ficha de la persona. Un encargado no edita fichas,
+ * así que para él la fila es solo información.
+ */
+function ItemPersona({ href, children }: { href: string | null; children: React.ReactNode }) {
+  if (!href) return <div className="item">{children}</div>
+  return (
+    <Link className="item pulsable" href={href}>
+      {children}
+    </Link>
   )
 }

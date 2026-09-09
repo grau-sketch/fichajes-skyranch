@@ -11,7 +11,7 @@ import {
 } from '@/lib/fechas'
 import { diasAusentes } from '@/lib/ausencias'
 import { ETIQUETA_AUSENCIA } from '@/lib/constants'
-import { agruparJornadas, minutosTurno, turnosSinFichar } from '@/lib/jornada'
+import { agruparJornadas, marcarDesvios, minutosTurno, turnosSinFichar } from '@/lib/jornada'
 import { createClient } from '@/lib/supabase/server'
 import type { Ausencia, Centro, Fichaje, Perfil, Turno } from '@/lib/types'
 
@@ -200,10 +200,13 @@ export async function GET(peticion: NextRequest) {
   for (const id of ids) {
     const { perfil, nombre, email, centro } = datosDe(id)
     const todos = porEmpleado.get(id) ?? []
-    const jornadas = agruparJornadas(todos, new Date(), TZ)
-      .filter((j) => j.fecha >= desde && j.fecha <= hasta)
-      .sort((a, b) => a.fecha.localeCompare(b.fecha))
     const susTurnos = turnos.filter((t) => t.empleado_id === id)
+    const jornadas = marcarDesvios(
+      agruparJornadas(todos, new Date(), TZ)
+        .filter((j) => j.fecha >= desde && j.fecha <= hasta)
+        .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+      susTurnos,
+    )
 
     const planificadoDe = (fecha: string) =>
       susTurnos.filter((t) => t.fecha === fecha).reduce((s, t) => s + minutosTurno(t), 0)

@@ -89,8 +89,11 @@ export default function ConsolaAdmin({
     gestion.push({ href: `${base}/admin/empleados`, texto: 'Personal y centros', icono: 'personal' })
   }
 
+  // La ficha de una persona se abre desde Equipo, así que cuenta como Equipo.
   const activo = (href: string) =>
-    href === `${base}/admin` ? ruta === href : ruta.startsWith(href)
+    href === `${base}/admin`
+      ? ruta === href || ruta.startsWith(`${base}/admin/personas`)
+      : ruta.startsWith(href)
 
   const seccion = gestion.find((e) => activo(e.href))?.texto ?? 'Consola'
 

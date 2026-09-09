@@ -3,6 +3,7 @@
 import { useDemo } from '@/components/DemoProvider'
 import PanelEquipo, { type FilaEquipo } from '@/components/PanelEquipo'
 import {
+  TOLERANCIA_DESVIO_MIN,
   TOLERANCIA_ENTRADA_MIN,
   TOLERANCIA_SALIDA_MIN,
   TZ,
@@ -13,7 +14,7 @@ import { diasAusentes } from '@/lib/ausencias'
 import { HOY } from '@/lib/demo'
 import { marcarAvisoDemo } from '@/lib/demoEstado'
 import { finTurno, hoyLocal, instanteLocal } from '@/lib/fechas'
-import { agruparJornadas } from '@/lib/jornada'
+import { agruparJornadas, desviosDelDia } from '@/lib/jornada'
 
 export default function Vista() {
   const { estado, aplicar } = useDemo()
@@ -75,6 +76,7 @@ export default function Vista() {
         fueraDeRadio: suyos.some(
           (f) => f.dentro_radio === false && f.ts >= `${hoy}T00:00:00`,
         ),
+        desvios: desviosDelDia(deHoy, turnosHoy, TOLERANCIA_DESVIO_MIN, TZ),
       }
     })
 

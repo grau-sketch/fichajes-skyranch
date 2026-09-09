@@ -57,6 +57,8 @@ function perfil(
     centro_id: 'skyranch',
     horas_semana,
     dias_vacaciones: 30,
+    fecha_nacimiento: null,
+    telefono: null,
     activo: true,
   }
 }

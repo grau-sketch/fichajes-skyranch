@@ -1,6 +1,6 @@
 import type { Anomalia } from './constants'
-import { TZ } from './constants'
-import { fechaLocal, finTurno, hoyLocal, horaAMinutos } from './fechas'
+import { TOLERANCIA_DESVIO_MIN, TZ } from './constants'
+import { fechaLocal, finTurno, hoyLocal, horaAMinutos, instanteLocal } from './fechas'
 import type { Fichaje, Turno } from './types'
 
 export type Jornada = {
@@ -181,4 +181,122 @@ export function turnoDeHoy(turnos: Turno[], tz: string = TZ): Turno | null {
     .filter((t) => t.fecha === hoy && t.estado !== 'cancelado')
     .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio))
   return deHoy[0] ?? null
+}
+
+export type Desvio = {
+  /** Día natural al que se refiere. */
+  fecha: string
+  tipo: 'entrada_tarde' | 'entrada_pronto' | 'salida_pronto' | 'salida_tarde'
+  /** Minutos de diferencia, siempre positivos. */
+  minutos: number
+  /** Hora planificada con la que se compara, 'HH:MM'. */
+  prevista: string
+}
+
+/**
+ * Primera entrada y última salida de cada día. El turno se planifica por día,
+ * así que es contra esos dos extremos contra los que se compara: si alguien
+ * ficha dos veces en la misma fecha, no son dos desvíos, es uno.
+ */
+function extremosPorDia(jornadas: Jornada[]) {
+  const dias = new Map<
+    string,
+    { entrada: string | null; salida: string | null; abierta: boolean }
+  >()
+  for (const j of jornadas) {
+    const previo = dias.get(j.fecha) ?? { entrada: null, salida: null, abierta: false }
+    dias.set(j.fecha, {
+      entrada: j.entrada && (!previo.entrada || j.entrada < previo.entrada) ? j.entrada : previo.entrada,
+      salida: j.salida && (!previo.salida || j.salida > previo.salida) ? j.salida : previo.salida,
+      abierta: previo.abierta || j.abierta,
+    })
+  }
+  return dias
+}
+
+/**
+ * Diferencias entre lo fichado y el turno planificado de ese mismo día.
+ *
+ * Se calcula aparte de `agruparJornadas` a propósito: los fichajes se agrupan
+ * igual haya turno o no, y así una jornada sin turno asignado nunca sale como
+ * desviada. Los turnos cancelados no cuentan, y un día con la jornada todavía
+ * abierta no tiene salida que juzgar.
+ */
+export function desviosDelDia(
+  jornadas: Jornada[],
+  turnos: Turno[],
+  tolerancia: number = TOLERANCIA_DESVIO_MIN,
+  tz: string = TZ,
+): Desvio[] {
+  const porDia = new Map<string, Turno>()
+  for (const t of turnos) {
+    if (t.estado !== 'cancelado') porDia.set(t.fecha, t)
+  }
+
+  const fuera: Desvio[] = []
+  for (const [fecha, dia] of extremosPorDia(jornadas)) {
+    const turno = porDia.get(fecha)
+    if (!turno) continue
+
+    if (dia.entrada) {
+      const previsto = instanteLocal(turno.fecha, turno.hora_inicio, tz).getTime()
+      const min = Math.round((new Date(dia.entrada).getTime() - previsto) / 60000)
+      if (Math.abs(min) > tolerancia) {
+        fuera.push({
+          fecha,
+          tipo: min > 0 ? 'entrada_tarde' : 'entrada_pronto',
+          minutos: Math.abs(min),
+          prevista: turno.hora_inicio.slice(0, 5),
+        })
+      }
+    }
+
+    if (dia.salida && !dia.abierta) {
+      const previsto = finTurno(turno.fecha, turno.hora_inicio, turno.hora_fin, tz).getTime()
+      const min = Math.round((new Date(dia.salida).getTime() - previsto) / 60000)
+      if (Math.abs(min) > tolerancia) {
+        fuera.push({
+          fecha,
+          tipo: min > 0 ? 'salida_tarde' : 'salida_pronto',
+          minutos: Math.abs(min),
+          prevista: turno.hora_fin.slice(0, 5),
+        })
+      }
+    }
+  }
+  return fuera.sort((a, b) => a.fecha.localeCompare(b.fecha))
+}
+
+/**
+ * Las mismas jornadas con los desvíos de horario añadidos como anomalías.
+ * El desvío es del día, así que se cuelga de la jornada que lo provoca: la de
+ * la primera entrada o la de la última salida. Si no, un día con dos jornadas
+ * contaría dos veces «a revisar».
+ */
+export function marcarDesvios(
+  jornadas: Jornada[],
+  turnos: Turno[],
+  tolerancia: number = TOLERANCIA_DESVIO_MIN,
+  tz: string = TZ,
+): Jornada[] {
+  const desvios = desviosDelDia(jornadas, turnos, tolerancia, tz)
+  if (desvios.length === 0) return jornadas
+
+  const dias = extremosPorDia(jornadas)
+  const extras = new Map<Jornada, Anomalia[]>()
+
+  for (const d of desvios) {
+    const dia = dias.get(d.fecha)
+    if (!dia) continue
+    const marca = d.tipo.startsWith('entrada') ? dia.entrada : dia.salida
+    const donde = d.tipo.startsWith('entrada')
+      ? jornadas.find((j) => j.fecha === d.fecha && j.entrada === marca)
+      : jornadas.find((j) => j.fecha === d.fecha && j.salida === marca)
+    if (donde) extras.set(donde, [...(extras.get(donde) ?? []), d.tipo])
+  }
+
+  return jornadas.map((j) => {
+    const extra = extras.get(j)
+    return extra ? { ...j, anomalias: [...j.anomalias, ...extra] } : j
+  })
 }

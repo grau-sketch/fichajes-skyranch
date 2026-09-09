@@ -40,11 +40,15 @@ create table if not exists perfiles (
   horas_semana  numeric(5,2) not null default 40 check (horas_semana between 0 and 60),
   -- Días naturales de vacaciones al año (30 es el mínimo legal en España).
   dias_vacaciones smallint not null default 30 check (dias_vacaciones between 0 and 60),
+  fecha_nacimiento date,
+  telefono text,
   activo        boolean not null default true,
   creado_en     timestamptz not null default now()
 );
 
 alter table perfiles add column if not exists dias_vacaciones smallint not null default 30;
+alter table perfiles add column if not exists fecha_nacimiento date;
+alter table perfiles add column if not exists telefono text;
 
 -- Alta automática de perfil al crear el usuario en Auth.
 create or replace function crear_perfil_al_registrar()

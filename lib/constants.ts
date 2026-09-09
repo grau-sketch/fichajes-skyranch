@@ -97,6 +97,10 @@ export const ANOMALIAS = [
   'sin_ubicacion',
   'turno_sin_fichar',
   'corregido',
+  'entrada_tarde',
+  'entrada_pronto',
+  'salida_pronto',
+  'salida_tarde',
 ] as const
 export type Anomalia = (typeof ANOMALIAS)[number]
 
@@ -107,7 +111,17 @@ export const ETIQUETA_ANOMALIA: Record<Anomalia, string> = {
   sin_ubicacion: 'Sin ubicación',
   turno_sin_fichar: 'Turno sin fichar',
   corregido: 'Corregido a mano',
+  entrada_tarde: 'Entró tarde',
+  entrada_pronto: 'Entró antes de hora',
+  salida_pronto: 'Salió antes de hora',
+  salida_tarde: 'Salió después de hora',
 }
+
+/**
+ * Margen que no se marca como desvío. Fichar con el móvil nunca cae al minuto
+ * exacto: sin margen, cada jornada saldría "a revisar" y el aviso no valdría.
+ */
+export const TOLERANCIA_DESVIO_MIN = 10
 
 export const ETIQUETA_AVISO = {
   sin_entrada: 'Falta la entrada',

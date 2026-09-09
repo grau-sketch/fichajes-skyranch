@@ -8,7 +8,7 @@ import { AUSENCIAS_SOLICITABLES, ROLES, TIPOS_AUSENCIA, TIPOS_FICHAJE } from '@/
 import { geocodificar } from '@/lib/geocodificar'
 import { notificarAvisosDeFichaje } from '@/lib/notificar'
 import { requerirGestor, requerirPerfil } from '@/lib/sesion'
-import { accesoDeNombre, nombreValido } from '@/lib/usuario'
+import { accesoDeNombre, nombreValido, usuarioDeNombre } from '@/lib/usuario'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { Fichaje } from '@/lib/types'
@@ -550,6 +550,105 @@ export async function restablecerPassword(_previo: unknown, form: FormData) {
   }
 
   return { ok: 'Contraseña cambiada. Pásasela a la persona.' }
+}
+
+/**
+ * Ficha completa de una persona: nombre, datos, rol, centro, jornada y
+ * vacaciones. Un aviso importante: **cambiar el nombre cambia con qué escribe
+ * para entrar**, porque el identificador se deriva de él. Cuando pasa, aquí se
+ * actualiza también el correo interno en Auth; si no, esa persona se quedaría
+ * fuera sin saber por qué.
+ */
+export async function guardarPersona(_previo: unknown, form: FormData) {
+  const gestor = await requerirGestor()
+  if (gestor.rol !== 'admin') return { error: 'Solo un administrador puede cambiar esto' }
+
+  const id = String(form.get('id') ?? '')
+  const nombre = String(form.get('nombre') ?? '').trim().replace(/\s+/g, ' ')
+  const rol = String(form.get('rol') ?? 'empleado')
+  const centro_id = String(form.get('centro_id') ?? '')
+  const horas_semana = Number(form.get('horas_semana') ?? 40)
+  const dias_vacaciones = Number(form.get('dias_vacaciones') ?? 30)
+  const fecha_nacimiento = String(form.get('fecha_nacimiento') ?? '')
+  const telefono = String(form.get('telefono') ?? '').trim()
+  const activo = form.get('activo') === 'on'
+
+  if (!id) return { error: 'Persona no válida' }
+  if (!nombreValido(nombre)) return { error: 'Escribe el nombre y el apellido' }
+  if (!ROLES.includes(rol as Rol)) return { error: 'Rol no válido' }
+  if (Number.isNaN(horas_semana) || horas_semana < 0 || horas_semana > 60) {
+    return { error: 'Las horas semanales deben estar entre 0 y 60' }
+  }
+  if (Number.isNaN(dias_vacaciones) || dias_vacaciones < 0 || dias_vacaciones > 60) {
+    return { error: 'Los días de vacaciones deben estar entre 0 y 60' }
+  }
+  if (fecha_nacimiento && !/^\d{4}-\d{2}-\d{2}$/.test(fecha_nacimiento)) {
+    return { error: 'La fecha de nacimiento no es válida' }
+  }
+
+  const supabase = createClient()
+  const { data: actual } = await supabase
+    .from('perfiles')
+    .select('nombre, email')
+    .eq('id', id)
+    .single()
+  if (!actual) return { error: 'No se encuentra a esa persona' }
+
+  const cambiaNombre = usuarioDeNombre(actual.nombre) !== usuarioDeNombre(nombre)
+  let nuevoEmail = actual.email
+
+  // El identificador de acceso se deriva del nombre: si cambia, hay que
+  // moverlo también en Auth o esa persona no podría volver a entrar.
+  if (cambiaNombre) {
+    nuevoEmail = accesoDeNombre(nombre)
+    try {
+      const admin = createAdminClient()
+      const { error } = await admin.auth.admin.updateUserById(id, {
+        email: nuevoEmail,
+        email_confirm: true,
+      })
+      if (error) {
+        const ocupado = /already|exists|registered/i.test(error.message)
+        return {
+          error: ocupado
+            ? `Ya hay alguien que entra como "${nombre}". Añade el segundo apellido.`
+            : 'No se ha podido cambiar el identificador de acceso',
+        }
+      }
+    } catch {
+      return {
+        error:
+          'Para cambiar el nombre hace falta SUPABASE_SERVICE_ROLE_KEY en el servidor: ' +
+          'sin ella el acceso quedaría apuntando al nombre antiguo.',
+      }
+    }
+  }
+
+  const { error } = await supabase
+    .from('perfiles')
+    .update({
+      nombre,
+      email: nuevoEmail,
+      rol,
+      centro_id: centro_id || null,
+      horas_semana,
+      dias_vacaciones,
+      fecha_nacimiento: fecha_nacimiento || null,
+      telefono: telefono || null,
+      activo,
+    })
+    .eq('id', id)
+
+  if (error) return { error: 'No se ha podido guardar' }
+
+  revalidatePath('/admin')
+  revalidatePath(`/admin/personas/${id}`)
+  revalidatePath('/admin/empleados')
+  return {
+    ok: cambiaNombre
+      ? `Guardado. Ojo: ${nombre} entra ahora escribiendo ese nombre nuevo.`
+      : 'Guardado',
+  }
 }
 
 // --- Geocodificación de centros ---------------------------------------------
