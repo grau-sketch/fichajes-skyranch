@@ -19,7 +19,8 @@ values (
   500,
   'Europe/Madrid'
 )
-on conflict do nothing;
+-- Por nombre, que es la restricción única: repetir el seed no duplica nada.
+on conflict (nombre) do nothing;
 
 -- Si ya existía con otros datos, esto lo pone al día.
 update centros

@@ -13,7 +13,8 @@ create extension if not exists pgcrypto;
 -- ----------------------------------------------------------------------------
 create table if not exists centros (
   id          uuid primary key default gen_random_uuid(),
-  nombre      text not null,
+  -- Único a propósito: sin esto, repetir el seed duplica el centro.
+  nombre      text not null unique,
   direccion   text,
   lat         double precision,
   lon         double precision,
@@ -22,6 +23,10 @@ create table if not exists centros (
   activo      boolean not null default true,
   creado_en   timestamptz not null default now()
 );
+
+-- Para instalaciones anteriores, donde el nombre no era único.
+alter table centros drop constraint if exists centros_nombre_unico;
+alter table centros add constraint centros_nombre_unico unique (nombre);
 
 -- ----------------------------------------------------------------------------
 -- Perfiles (1:1 con auth.users)
@@ -48,6 +53,8 @@ begin
   insert into perfiles (id, nombre, email)
   values (
     new.id,
+    -- Si el alta no trae nombre (por ejemplo, creando el usuario a mano desde
+    -- el panel de Supabase), queda el identificador y hay que corregirlo luego.
     coalesce(new.raw_user_meta_data->>'nombre', split_part(new.email, '@', 1)),
     new.email
   )
