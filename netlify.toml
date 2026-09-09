@@ -2,7 +2,9 @@
 # al detectar next.config.js; no hace falta declararlo aquí.
 
 [build]
-  command = "bun install --frozen-lockfile && bun run build"
+  # Bun si está disponible en la imagen de build, npm si no. El lockfile de bun
+  # es de formato nuevo y Netlify no siempre lo detecta.
+  command = "(bun install --frozen-lockfile || npm install --no-audit --no-fund) && npm run build"
   publish = ".next"
 
 [build.environment]
