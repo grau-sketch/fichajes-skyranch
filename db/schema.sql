@@ -247,9 +247,9 @@ alter table avisos add constraint avisos_tipo_check check (tipo in (
 -- Un mismo aviso no se repite: ni por turno ni por fichaje.
 drop index if exists avisos_turno_tipo_idx;
 create unique index if not exists avisos_turno_tipo_idx
-  on avisos (turno_id, tipo, coalesce(destinatario_id, empleado_id)) where turno_id is not null;
+  on avisos (turno_id, tipo, (coalesce(destinatario_id, empleado_id))) where turno_id is not null;
 create unique index if not exists avisos_fichaje_tipo_idx
-  on avisos (fichaje_id, tipo, coalesce(destinatario_id, empleado_id)) where fichaje_id is not null;
+  on avisos (fichaje_id, tipo, (coalesce(destinatario_id, empleado_id))) where fichaje_id is not null;
 create index if not exists avisos_empleado_idx on avisos (empleado_id, enviado_en desc);
 create index if not exists avisos_destinatario_idx on avisos (destinatario_id, enviado_en desc);
 
