@@ -103,11 +103,38 @@ Tipos de fichaje: `entrada → pausa_inicio ⇄ pausa_fin → salida`.
   Abierta en un día pasado: incidencia `sin_salida`.
 - Fichaje dentro del centro si `distancia <= radio + min(precisión, 100)`. El
   error del GPS cuenta a favor de la persona.
+- **Desvío de horario** = lo fichado frente al turno de ese día, con margen
+  `TOLERANCIA_DESVIO_MIN` (10 min). Es **del día, no de cada jornada**: se
+  comparan la primera entrada y la última salida contra el turno, porque si no
+  un día con dos jornadas contaría el desvío dos veces. Sin turno asignado no
+  hay desvío, y un día con la jornada abierta no tiene salida que juzgar.
+  Vive en `desviosDelDia` / `marcarDesvios` (`lib/jornada.ts`).
 - Proyección = fichado + turnos que aún no han terminado, contra
   `horas_semana * días / 7`.
 - Todo el tiempo se calcula en la zona del centro (`Europe/Madrid` por defecto),
   con `instanteLocal()` / `finTurno()` de `lib/fechas.ts`, que ya manejan los
   cambios de hora. **No uses `new Date('YYYY-MM-DDTHH:MM')`** para horas locales.
+
+## Ficha de una persona
+`/admin/personas/[id]`, que se abre pinchando su fila en Equipo. La
+presentación está en `components/FichaPersona.tsx` y la comparten la consola
+real y `/demo/admin/personas/[id]`; las páginas solo traen los datos.
+
+- Se editan nombre, fecha de nacimiento, teléfono, rol, centro, horas semanales
+  y días de vacaciones (`guardarPersona`), y se cambia la contraseña
+  (`restablecerPassword`).
+- **Cambiar el nombre cambia el acceso.** El identificador se deriva del nombre,
+  así que `guardarPersona` mueve también el correo interno en Auth (necesita
+  `service_role`) y avisa de que esa persona entra ya con el nombre nuevo. Si
+  choca con otro, pide el segundo apellido.
+- **El PIN no se pone desde aquí y la ficha lo dice.** Es un hash con sal en el
+  `localStorage` del móvil de esa persona: no existe en el servidor. No añadas
+  un campo de PIN en la ficha; sería mentira.
+- **«A revisar»** son las jornadas con anomalías: fichaje incompleto
+  (`sin_salida`, `pausa_abierta`), fuera del centro (`fuera_de_radio`),
+  corregido a mano, turno sin fichar, y los desvíos de horario. En el panel de
+  Equipo solo cuentan los de **hoy** (es el estado de ahora); el repaso del mes
+  está en la ficha y en el informe descargable.
 
 ## Identidad y marca
 - **Nadie entra con correo.** Se entra con nombre y apellido; el identificador
@@ -197,19 +224,17 @@ El centro real del proyecto es **SKYRANCH** (Rozas de Puerto Real, Madrid:
 **Hecho:** fichaje con ubicación y cola offline, jornadas y proyecciones propias,
 panel de equipo con incidencias, informes CSV (jornadas + historial de
 movimientos) e impresión a PDF, correcciones trazadas (añadir, corregir,
-anular), historial visible para el trabajador, alta de trabajadores y cambio de
-contraseña desde la app, centros con búsqueda de dirección y captura de
+anular), ficha de cada persona editable desde Equipo, alta de trabajadores y
+cambio de contraseña desde la app, centros con búsqueda de dirección y captura de
 coordenadas por GPS, avisos push (al trabajador y al responsable) con cron, PWA
 instalable con service worker.
 
 **Pendiente (orden sugerido):**
-1. PIN de desbloqueo rápido **encima** de la sesión (no como autenticación),
-   para no escribir nombre y contraseña cada mañana en el campo.
-2. Confirmación de horario por parte del trabajador y solicitud de cambio.
-3. Resumen semanal por correo al responsable (Resend) con las incidencias.
-4. Exportación sellada/firmada del informe mensual.
-5. Recuperación de contraseña por el propio trabajador.
-6. Mapa en el panel con el punto del fichaje que cayó fuera del radio.
+1. Confirmación de horario por parte del trabajador y solicitud de cambio.
+2. Resumen semanal por correo al responsable (Resend) con las incidencias.
+3. Exportación sellada/firmada del informe mensual.
+4. Recuperación de contraseña por el propio trabajador.
+5. Mapa en el panel con el punto del fichaje que cayó fuera del radio.
 
 **Descartado a propósito:** el fichaje por QR. La versión anterior lo tenía con
 un token estático en el cliente, falsificable en segundos; y con la geocerca ya
