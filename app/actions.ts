@@ -1,0 +1,508 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Rol, TipoFichaje } from '@/lib/constants'
+import { ROLES, TIPOS_FICHAJE } from '@/lib/constants'
+import { geocodificar } from '@/lib/geocodificar'
+import { notificarAvisosDeFichaje } from '@/lib/notificar'
+import { requerirGestor, requerirPerfil } from '@/lib/sesion'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
+import type { Fichaje } from '@/lib/types'
+
+export type Resultado<T = null> = { ok: true; datos: T } | { ok: false; error: string }
+
+// --- Sesión ------------------------------------------------------------------
+
+export async function entrar(_previo: unknown, form: FormData): Promise<{ error: string } | void> {
+  const email = String(form.get('email') ?? '').trim().toLowerCase()
+  const password = String(form.get('password') ?? '')
+  const destino = String(form.get('redirect') ?? '/fichar')
+
+  if (!email || !password) return { error: 'Rellena el correo y la contraseña' }
+
+  const supabase = createClient()
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) {
+    return {
+      error:
+        error.message === 'Invalid login credentials'
+          ? 'Correo o contraseña incorrectos'
+          : 'No se ha podido iniciar sesión. Inténtalo de nuevo.',
+    }
+  }
+
+  redirect(destino.startsWith('/') ? destino : '/fichar')
+}
+
+export async function cerrarSesion(): Promise<void> {
+  const supabase = createClient()
+  await supabase.auth.signOut()
+  redirect('/login')
+}
+
+// --- Fichar ------------------------------------------------------------------
+
+export async function registrarFichaje(entrada: {
+  tipo: TipoFichaje
+  lat?: number | null
+  lon?: number | null
+  precision_m?: number | null
+  /** ISO. Solo para fichajes recuperados de la cola offline. */
+  ts?: string | null
+}): Promise<Resultado<Fichaje>> {
+  if (!TIPOS_FICHAJE.includes(entrada.tipo)) {
+    return { ok: false, error: 'Tipo de fichaje no válido' }
+  }
+
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Sesión caducada. Vuelve a entrar.' }
+
+  const { data, error } = await supabase.rpc('fichar', {
+    p_tipo: entrada.tipo,
+    p_lat: entrada.lat ?? null,
+    p_lon: entrada.lon ?? null,
+    p_precision: entrada.precision_m ?? null,
+    p_ts: entrada.ts ?? null,
+    p_nota: null,
+  })
+
+  if (error) return { ok: false, error: limpiarError(error.message) }
+
+  const fichaje = data as Fichaje
+
+  // Fichar fuera del centro no se bloquea, pero el responsable se entera.
+  // fichar() ya dejó el aviso en la base; aquí solo lo empujamos por push.
+  if (fichaje.dentro_radio === false) {
+    await notificarAvisosDeFichaje(fichaje.id)
+  }
+
+  revalidatePath('/fichar')
+  revalidatePath('/jornadas')
+  revalidatePath('/admin')
+  return { ok: true, datos: fichaje }
+}
+
+/** Los mensajes de RAISE de PostgreSQL llegan prefijados; los dejamos legibles. */
+function limpiarError(mensaje: string): string {
+  return mensaje.replace(/^.*?:\s*/, '').trim() || 'No se ha podido registrar el fichaje'
+}
+
+// --- Web Push ----------------------------------------------------------------
+
+export async function guardarSuscripcion(suscripcion: {
+  endpoint: string
+  p256dh: string
+  auth: string
+  user_agent?: string
+}): Promise<Resultado> {
+  const perfil = await requerirPerfil()
+  const supabase = createClient()
+
+  const { error } = await supabase.from('push_suscripciones').upsert(
+    {
+      empleado_id: perfil.id,
+      endpoint: suscripcion.endpoint,
+      p256dh: suscripcion.p256dh,
+      auth: suscripcion.auth,
+      user_agent: suscripcion.user_agent ?? null,
+    },
+    { onConflict: 'endpoint' },
+  )
+
+  if (error) return { ok: false, error: 'No se han podido activar los avisos' }
+  return { ok: true, datos: null }
+}
+
+export async function borrarSuscripcion(endpoint: string): Promise<Resultado> {
+  const perfil = await requerirPerfil()
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('push_suscripciones')
+    .delete()
+    .eq('endpoint', endpoint)
+    .eq('empleado_id', perfil.id)
+  if (error) return { ok: false, error: 'No se han podido desactivar los avisos' }
+  return { ok: true, datos: null }
+}
+
+export async function marcarAvisoLeido(id: string): Promise<Resultado> {
+  await requerirPerfil()
+  const supabase = createClient()
+
+  // La policy de update ya limita a los avisos dirigidos a quien llama.
+  const { error } = await supabase
+    .from('avisos')
+    .update({ leido_en: new Date().toISOString() })
+    .eq('id', id)
+    .is('leido_en', null)
+
+  if (error) return { ok: false, error: 'No se ha podido marcar como leído' }
+
+  revalidatePath('/fichar')
+  revalidatePath('/admin')
+  return { ok: true, datos: null }
+}
+
+// --- Correcciones (admin / encargado) ---------------------------------------
+
+export async function corregirFichaje(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const empleado_id = String(form.get('empleado_id') ?? '')
+  const tipo = String(form.get('tipo') ?? '') as TipoFichaje
+  const fecha = String(form.get('fecha') ?? '')
+  const hora = String(form.get('hora') ?? '')
+  const nota = String(form.get('nota') ?? '')
+
+  if (!empleado_id || !TIPOS_FICHAJE.includes(tipo) || !fecha || !hora) {
+    return { error: 'Faltan datos del fichaje' }
+  }
+  if (nota.trim().length < 3) return { error: 'Indica el motivo de la corrección' }
+
+  const supabase = createClient()
+  const { error } = await supabase.rpc('fichaje_manual', {
+    p_empleado: empleado_id,
+    p_tipo: tipo,
+    p_ts: new Date(`${fecha}T${hora}:00`).toISOString(),
+    p_nota: nota,
+  })
+  if (error) return { error: limpiarError(error.message) }
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/informes')
+  return { ok: 'Fichaje corregido' }
+}
+
+export async function anularFichaje(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const id = String(form.get('id') ?? '')
+  const motivo = String(form.get('motivo') ?? '')
+  if (!id) return { error: 'Fichaje no válido' }
+  if (motivo.trim().length < 3) return { error: 'Indica el motivo de la anulación' }
+
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc('fichaje_anular', {
+    p_fichaje: id,
+    p_motivo: motivo,
+  })
+  if (error) return { error: limpiarError(error.message) }
+
+  const anulado = data as Fichaje | null
+  if (anulado) await notificarAvisosDeFichaje(anulado.id)
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/informes')
+  revalidatePath('/jornadas')
+  return { ok: 'Fichaje anulado' }
+}
+
+export async function corregirHora(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const id = String(form.get('id') ?? '')
+  const fecha = String(form.get('fecha') ?? '')
+  const hora = String(form.get('hora') ?? '')
+  const tipo = String(form.get('tipo') ?? '')
+  const motivo = String(form.get('motivo') ?? '')
+
+  if (!id || !fecha || !hora) return { error: 'Faltan la fecha y la hora nuevas' }
+  if (motivo.trim().length < 3) return { error: 'Indica el motivo de la corrección' }
+  if (tipo && !TIPOS_FICHAJE.includes(tipo as TipoFichaje)) {
+    return { error: 'Tipo de fichaje no válido' }
+  }
+
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc('fichaje_corregir', {
+    p_fichaje: id,
+    p_nuevo_ts: new Date(`${fecha}T${hora}:00`).toISOString(),
+    p_motivo: motivo,
+    p_nuevo_tipo: tipo || null,
+  })
+  if (error) return { error: limpiarError(error.message) }
+
+  const nuevo = data as Fichaje | null
+  if (nuevo) await notificarAvisosDeFichaje(nuevo.id)
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/informes')
+  revalidatePath('/jornadas')
+  return { ok: 'Fichaje corregido' }
+}
+
+// --- Turnos ------------------------------------------------------------------
+
+export async function guardarPlantilla(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const empleado_id = String(form.get('empleado_id') ?? '')
+  const dia_semana = Number(form.get('dia_semana'))
+  const hora_inicio = String(form.get('hora_inicio') ?? '')
+  const hora_fin = String(form.get('hora_fin') ?? '')
+  const pausa_min = Number(form.get('pausa_min') ?? 0)
+
+  if (!empleado_id || Number.isNaN(dia_semana) || !hora_inicio || !hora_fin) {
+    return { error: 'Faltan datos del patrón' }
+  }
+
+  const supabase = createClient()
+  const { data: emp } = await supabase
+    .from('perfiles')
+    .select('centro_id')
+    .eq('id', empleado_id)
+    .single()
+
+  const { error } = await supabase.from('plantillas_turno').upsert(
+    {
+      empleado_id,
+      centro_id: emp?.centro_id ?? null,
+      dia_semana,
+      hora_inicio,
+      hora_fin,
+      pausa_min: Number.isNaN(pausa_min) ? 0 : pausa_min,
+    },
+    { onConflict: 'empleado_id,dia_semana,hora_inicio' },
+  )
+  if (error) return { error: 'No se ha podido guardar el patrón' }
+
+  revalidatePath('/admin/turnos')
+  return { ok: 'Patrón guardado' }
+}
+
+export async function borrarPlantilla(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const id = String(form.get('id') ?? '')
+  const supabase = createClient()
+  const { error } = await supabase.from('plantillas_turno').delete().eq('id', id)
+  if (error) return { error: 'No se ha podido borrar' }
+  revalidatePath('/admin/turnos')
+  return { ok: 'Patrón borrado' }
+}
+
+export async function generarTurnos(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const empleado_id = String(form.get('empleado_id') ?? '')
+  const desde = String(form.get('desde') ?? '')
+  const hasta = String(form.get('hasta') ?? '')
+  if (!empleado_id || !desde || !hasta) return { error: 'Indica empleado y fechas' }
+
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc('generar_turnos', {
+    p_empleado: empleado_id,
+    p_desde: desde,
+    p_hasta: hasta,
+  })
+  if (error) return { error: limpiarError(error.message) }
+
+  revalidatePath('/admin/turnos')
+  revalidatePath('/turnos')
+  const n = Number(data ?? 0)
+  return { ok: n === 0 ? 'No había turnos nuevos que crear' : `${n} turnos planificados` }
+}
+
+export async function guardarTurno(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const empleado_id = String(form.get('empleado_id') ?? '')
+  const fecha = String(form.get('fecha') ?? '')
+  const hora_inicio = String(form.get('hora_inicio') ?? '')
+  const hora_fin = String(form.get('hora_fin') ?? '')
+  const pausa_min = Number(form.get('pausa_min') ?? 0)
+  if (!empleado_id || !fecha || !hora_inicio || !hora_fin) return { error: 'Faltan datos del turno' }
+
+  const supabase = createClient()
+  const { data: emp } = await supabase
+    .from('perfiles')
+    .select('centro_id')
+    .eq('id', empleado_id)
+    .single()
+
+  const { error } = await supabase.from('turnos').upsert(
+    {
+      empleado_id,
+      centro_id: emp?.centro_id ?? null,
+      fecha,
+      hora_inicio,
+      hora_fin,
+      pausa_min: Number.isNaN(pausa_min) ? 0 : pausa_min,
+    },
+    { onConflict: 'empleado_id,fecha,hora_inicio' },
+  )
+  if (error) return { error: 'No se ha podido guardar el turno' }
+
+  revalidatePath('/admin/turnos')
+  revalidatePath('/turnos')
+  return { ok: 'Turno guardado' }
+}
+
+export async function cancelarTurno(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const id = String(form.get('id') ?? '')
+  const supabase = createClient()
+  const { error } = await supabase.from('turnos').update({ estado: 'cancelado' }).eq('id', id)
+  if (error) return { error: 'No se ha podido cancelar' }
+  revalidatePath('/admin/turnos')
+  revalidatePath('/turnos')
+  return { ok: 'Turno cancelado' }
+}
+
+// --- Alta de trabajadores (solo admin) --------------------------------------
+
+/**
+ * Crea la cuenta del trabajador y su perfil de una vez, sin pasar por el panel
+ * de Supabase. Usa service_role, así que solo puede llamarla un admin: la
+ * comprobación de rol es obligatoria aquí, porque el cliente admin salta RLS.
+ */
+export async function crearEmpleado(_previo: unknown, form: FormData) {
+  const gestor = await requerirGestor()
+  if (gestor.rol !== 'admin') return { error: 'Solo un administrador puede dar de alta' }
+
+  const nombre = String(form.get('nombre') ?? '').trim()
+  const email = String(form.get('email') ?? '').trim().toLowerCase()
+  const password = String(form.get('password') ?? '')
+  const rol = String(form.get('rol') ?? 'empleado')
+  const centro_id = String(form.get('centro_id') ?? '')
+  const horas_semana = Number(form.get('horas_semana') ?? 40)
+
+  if (nombre.length < 2) return { error: 'Escribe el nombre completo' }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: 'El correo no es válido' }
+  if (password.length < 8) return { error: 'La contraseña necesita al menos 8 caracteres' }
+  if (!ROLES.includes(rol as Rol)) return { error: 'Rol no válido' }
+  if (Number.isNaN(horas_semana) || horas_semana < 0 || horas_semana > 60) {
+    return { error: 'Las horas semanales deben estar entre 0 y 60' }
+  }
+
+  let admin: SupabaseClient
+  try {
+    admin = createAdminClient()
+  } catch {
+    return {
+      error:
+        'Falta SUPABASE_SERVICE_ROLE_KEY en el servidor. Sin ella no se pueden crear cuentas desde la app.',
+    }
+  }
+
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    // Sin SMTP configurado no habría forma de confirmar el correo.
+    email_confirm: true,
+    user_metadata: { nombre },
+  })
+
+  if (error || !data.user) {
+    const yaExiste = /already|exists|registered/i.test(error?.message ?? '')
+    return { error: yaExiste ? 'Ya hay una cuenta con ese correo' : 'No se ha podido crear la cuenta' }
+  }
+
+  // El trigger de auth.users ya creó el perfil; aquí se completan sus datos.
+  const { error: errorPerfil } = await admin
+    .from('perfiles')
+    .update({ nombre, email, rol, centro_id: centro_id || null, horas_semana, activo: true })
+    .eq('id', data.user.id)
+
+  if (errorPerfil) {
+    return { error: 'La cuenta se creó pero no se han podido guardar sus datos. Revísala en la lista.' }
+  }
+
+  revalidatePath('/admin/empleados')
+  revalidatePath('/admin')
+  return { ok: `${nombre} ya puede entrar con ${email}` }
+}
+
+/** Cambia la contraseña de un trabajador (para cuando la pierde). */
+export async function restablecerPassword(_previo: unknown, form: FormData) {
+  const gestor = await requerirGestor()
+  if (gestor.rol !== 'admin') return { error: 'Solo un administrador puede hacer esto' }
+
+  const id = String(form.get('id') ?? '')
+  const password = String(form.get('password') ?? '')
+  if (!id) return { error: 'Empleado no válido' }
+  if (password.length < 8) return { error: 'La contraseña necesita al menos 8 caracteres' }
+
+  try {
+    const admin = createAdminClient()
+    const { error } = await admin.auth.admin.updateUserById(id, { password })
+    if (error) return { error: 'No se ha podido cambiar la contraseña' }
+  } catch {
+    return { error: 'Falta SUPABASE_SERVICE_ROLE_KEY en el servidor' }
+  }
+
+  return { ok: 'Contraseña cambiada. Pásasela a la persona.' }
+}
+
+// --- Geocodificación de centros ---------------------------------------------
+
+export async function buscarCoordenadas(
+  direccion: string,
+): Promise<Resultado<{ lat: number; lon: number; etiqueta: string }>> {
+  // En producción exige sesión de gestor. En desarrollo se deja abierta para
+  // que la pantalla de demostración pueda probar la búsqueda de verdad.
+  if (process.env.NODE_ENV === 'production') await requerirGestor()
+  const encontrado = await geocodificar(direccion)
+  if (!encontrado) {
+    return {
+      ok: false,
+      error: 'No se ha encontrado esa dirección. Prueba con calle, número y ciudad.',
+    }
+  }
+  return { ok: true, datos: encontrado }
+}
+
+// --- Plantilla de personal y centros (solo admin) ---------------------------
+
+export async function guardarEmpleado(_previo: unknown, form: FormData) {
+  const gestor = await requerirGestor()
+  if (gestor.rol !== 'admin') return { error: 'Solo un administrador puede cambiar esto' }
+
+  const id = String(form.get('id') ?? '')
+  const centro_id = String(form.get('centro_id') ?? '')
+  const rol = String(form.get('rol') ?? 'empleado')
+  const horas_semana = Number(form.get('horas_semana') ?? 40)
+  const activo = form.get('activo') === 'on'
+
+  if (!id) return { error: 'Empleado no válido' }
+  if (Number.isNaN(horas_semana) || horas_semana < 0 || horas_semana > 60) {
+    return { error: 'Las horas semanales deben estar entre 0 y 60' }
+  }
+
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('perfiles')
+    .update({ centro_id: centro_id || null, rol, horas_semana, activo })
+    .eq('id', id)
+  if (error) return { error: 'No se ha podido guardar' }
+
+  revalidatePath('/admin/empleados')
+  return { ok: 'Empleado actualizado' }
+}
+
+export async function guardarCentro(_previo: unknown, form: FormData) {
+  const gestor = await requerirGestor()
+  if (gestor.rol !== 'admin') return { error: 'Solo un administrador puede crear centros' }
+
+  const id = String(form.get('id') ?? '')
+  const nombre = String(form.get('nombre') ?? '').trim()
+  const direccion = String(form.get('direccion') ?? '').trim()
+  const lat = form.get('lat') ? Number(form.get('lat')) : null
+  const lon = form.get('lon') ? Number(form.get('lon')) : null
+  const radio_m = Number(form.get('radio_m') ?? 150)
+
+  if (!nombre) return { error: 'El centro necesita un nombre' }
+  if (lat !== null && (Number.isNaN(lat) || lat < -90 || lat > 90)) return { error: 'Latitud no válida' }
+  if (lon !== null && (Number.isNaN(lon) || lon < -180 || lon > 180)) return { error: 'Longitud no válida' }
+  if (Number.isNaN(radio_m) || radio_m < 25 || radio_m > 5000) {
+    return { error: 'El radio debe estar entre 25 y 5000 metros' }
+  }
+
+  const supabase = createClient()
+  const fila = { nombre, direccion: direccion || null, lat, lon, radio_m }
+  const { error } = id
+    ? await supabase.from('centros').update(fila).eq('id', id)
+    : await supabase.from('centros').insert(fila)
+  if (error) return { error: 'No se ha podido guardar el centro' }
+
+  revalidatePath('/admin/empleados')
+  return { ok: 'Centro guardado' }
+}
