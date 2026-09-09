@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import BuscadorDireccion from '@/components/BuscadorDireccion'
 import CampoPassword from '@/components/CampoPassword'
 import { useDemo } from '@/components/DemoProvider'
@@ -39,16 +38,6 @@ export default function Vista() {
 
   return (
     <>
-      <header className="cabecera">
-        <div className="cabecera-inner">
-          <div className="crece">
-            <Link href="/demo/admin" className="mini suave">
-              ← Volver
-            </Link>
-            <h1>Personal y centros</h1>
-          </div>
-        </div>
-      </header>
 
       <main className="pagina">
         <div className="tarjeta">

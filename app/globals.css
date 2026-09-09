@@ -607,6 +607,202 @@ tfoot th { border-bottom: none; font-weight: 600; color: var(--texto); }
 }
 .cal-celda[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--marca); }
 
+/* --- Utilidades por tamaño ------------------------------------------------ */
+.solo-escritorio { display: none; }
+@media (min-width: 960px) {
+  .solo-movil { display: none !important; }
+  .solo-escritorio { display: revert; }
+}
+
+/* --- Consola de administración -------------------------------------------
+   En móvil se comporta como el resto de la app (columna estrecha y barra
+   inferior). Desde 960 px aparece la barra lateral fija, desaparece la barra
+   inferior y el contenido usa el ancho real de la pantalla.
+   -------------------------------------------------------------------------- */
+.consola { display: block; }
+
+.consola-lateral { display: none; }
+
+.consola-superior {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  background: var(--velo);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--linea);
+  padding: calc(10px + env(safe-area-inset-top)) 16px 12px;
+}
+.consola-superior-inner {
+  max-width: var(--max);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Campana de avisos */
+.campana {
+  position: relative;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--texto-2);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  min-width: 40px;
+}
+.campana:hover { background: var(--superficie-2); color: var(--texto); }
+.campana svg { width: 21px; height: 21px; }
+.campana .cuenta {
+  position: absolute;
+  top: 3px;
+  right: 2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--error);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.panel-avisos {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(400px, calc(100vw - 32px));
+  max-height: 65vh;
+  overflow-y: auto;
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: var(--r);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+  padding: 14px;
+  z-index: 40;
+  text-align: left;
+}
+.envoltorio-campana { position: relative; }
+
+@media (min-width: 960px) {
+  /* Sin barra inferior: manda la lateral. */
+  body:has(.consola) { padding-bottom: 0; }
+  body:has(.consola) .nav { display: none; }
+
+  .consola {
+    display: grid;
+    grid-template-columns: 252px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  .consola-lateral {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 22px 14px;
+    border-right: 1px solid var(--linea);
+    background: var(--superficie);
+    overflow-y: auto;
+  }
+  .consola-lateral .marca { margin: 0 8px 18px; }
+  .consola-lateral .seccion {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--texto-3);
+    padding: 14px 10px 6px;
+  }
+  .consola-lateral a {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    color: var(--texto-2);
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    transition: background 160ms var(--curva), color 160ms var(--curva);
+  }
+  .consola-lateral a:hover { background: var(--superficie-2); color: var(--texto); text-decoration: none; }
+  .consola-lateral a.activo { background: var(--marca-tinte); color: var(--marca-fuerte); font-weight: 600; }
+  .consola-lateral a svg { width: 19px; height: 19px; flex: none; }
+  .consola-lateral a .globo {
+    margin-left: auto;
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--error);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .consola-lateral .pie {
+    margin-top: auto;
+    padding: 14px 10px 0;
+    border-top: 1px solid var(--linea);
+  }
+
+  .consola-superior { padding: 18px 32px; }
+  .consola-superior-inner { max-width: none; }
+
+  /* El contenido de la consola usa el ancho de verdad. */
+  .consola .pagina {
+    max-width: 1380px;
+    padding: 26px 32px 40px;
+    gap: 22px;
+  }
+
+  /* Rejillas de escritorio */
+  .rejilla { display: grid; gap: 22px; }
+  .rejilla.dos { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .rejilla.dos-uno { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+  .metricas.cuatro { grid-template-columns: repeat(4, 1fr); }
+
+  /* Tablas con aire, sin scroll horizontal si cabe */
+  .consola table { font-size: 14px; }
+  .consola th, .consola td { padding: 12px 16px 12px 0; }
+  .consola .tabla-scroll { margin: 0; padding: 0; }
+
+  /* Los formularios de la consola no ocupan todo el ancho */
+  .consola .tarjeta form { max-width: 560px; }
+  .consola .campos.dos { max-width: 560px; }
+
+  /* Los filtros de informes, en una línea */
+  .consola .filtros {
+    max-width: none;
+    display: grid;
+    grid-template-columns: 190px 190px minmax(220px, 1fr) auto;
+    gap: 16px;
+    align-items: end;
+  }
+  .consola .filtros .campos.dos { display: contents; max-width: none; }
+  .consola .filtros > button,
+  .consola .filtros button[type='submit'] { align-self: end; }
+
+  /* Los botones de descarga no se estiran a media pantalla */
+  .consola .descargas { justify-content: flex-start; }
+  .consola .descargas > * { flex: 0 0 auto; }
+}
+
+@media (min-width: 1440px) {
+  .consola { grid-template-columns: 272px minmax(0, 1fr); }
+}
+
 /* --- Barra de navegación ------------------------------------------------- */
 .nav {
   position: fixed;

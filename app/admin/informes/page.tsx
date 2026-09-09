@@ -1,5 +1,4 @@
 import BotonImprimir from '@/components/BotonImprimir'
-import Cabecera from '@/components/Cabecera'
 import Formulario from '@/components/Formulario'
 import BloqueInforme, { type BloqueDatos } from '@/components/BloqueInforme'
 import { corregirFichaje } from '@/app/actions'
@@ -110,9 +109,8 @@ export default async function Informes({
 
   return (
     <>
-      <Cabecera titulo="Informes" subtitulo="Registro de jornada" volver="/admin" />
       <main className="pagina">
-        <form className="tarjeta columna no-imprimir" method="get">
+        <form className="tarjeta columna filtros no-imprimir" method="get">
           <div className="campos dos">
             <div>
               <label htmlFor="desde">Desde</label>
@@ -139,7 +137,7 @@ export default async function Informes({
           </button>
         </form>
 
-        <div className="fila no-imprimir" style={{ gap: 10, flexWrap: 'wrap' }}>
+        <div className="fila descargas no-imprimir" style={{ gap: 10, flexWrap: 'wrap' }}>
           <a className="btn crece" href={`/api/informe?${parametros.toString()}`} download>
             CSV de jornadas
           </a>

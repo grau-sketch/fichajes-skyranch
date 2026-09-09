@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
 import BloqueInforme, { type BloqueDatos } from '@/components/BloqueInforme'
 import { useDemo } from '@/components/DemoProvider'
@@ -84,20 +83,9 @@ export default function Vista() {
 
   return (
     <>
-      <header className="cabecera">
-        <div className="cabecera-inner">
-          <div className="crece">
-            <Link href="/demo/admin" className="mini suave">
-              ← Volver
-            </Link>
-            <h1>Informes</h1>
-            <p className="quien">Registro de jornada</p>
-          </div>
-        </div>
-      </header>
 
       <main className="pagina">
-        <div className="tarjeta columna">
+        <div className="tarjeta columna filtros">
           <div className="campos dos">
             <div>
               <label htmlFor="d">Desde</label>
@@ -142,7 +130,7 @@ export default function Vista() {
           En la app real estos dos botones descargan los CSV. Aquí no hay servidor, así que se
           quedan como muestra; lo que sí funciona es corregir y anular fichajes.
         </p>
-        <div className="fila" style={{ gap: 10, flexWrap: 'wrap' }}>
+        <div className="fila descargas" style={{ gap: 10, flexWrap: 'wrap' }}>
           <span className="btn crece" aria-disabled>
             CSV de jornadas
           </span>

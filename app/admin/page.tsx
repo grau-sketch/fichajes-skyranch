@@ -1,4 +1,3 @@
-import Cabecera from '@/components/Cabecera'
 import PanelEquipo, { type FilaEquipo } from '@/components/PanelEquipo'
 import { TOLERANCIA_ENTRADA_MIN, TOLERANCIA_SALIDA_MIN, TZ } from '@/lib/constants'
 import { finTurno, hoyLocal, instanteLocal, sumarDias } from '@/lib/fechas'
@@ -108,21 +107,15 @@ export default async function Admin() {
   })
 
   return (
-    <>
-      <Cabecera
-        titulo="Equipo"
-        subtitulo={gestor.rol === 'admin' ? 'Todos los centros' : 'Tu centro'}
+    <main className="pagina">
+      <PanelEquipo
+        filas={filas}
+        avisos={avisos}
+        hoy={hoy}
+        tz={TZ}
+        esAdmin={gestor.rol === 'admin'}
+        ausenciasPendientes={ausenciasPendientes}
       />
-      <main className="pagina">
-        <PanelEquipo
-          filas={filas}
-          avisos={avisos}
-          hoy={hoy}
-          tz={TZ}
-          esAdmin={gestor.rol === 'admin'}
-          ausenciasPendientes={ausenciasPendientes}
-        />
-      </main>
-    </>
+    </main>
   )
 }

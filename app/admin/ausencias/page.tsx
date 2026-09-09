@@ -1,4 +1,3 @@
-import Cabecera from '@/components/Cabecera'
 import ListaAusencias from '@/components/ListaAusencias'
 import PedirAusencia from '@/components/PedirAusencia'
 import { DIAS_VACACIONES_MINIMO } from '@/lib/constants'
@@ -38,7 +37,6 @@ export default async function Ausencias({
 
   return (
     <>
-      <Cabecera titulo="Ausencias" subtitulo={`Vacaciones y bajas · ${anio}`} volver="/admin" />
       <main className="pagina">
         <div className="tarjeta">
           <header>

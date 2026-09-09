@@ -50,8 +50,9 @@ export default function PanelEquipo({
 
   return (
     <>
+      {/* En escritorio los avisos viven en la campana de la barra superior. */}
       {avisos.length > 0 && (
-        <div className="columna" style={{ gap: 8 }}>
+        <div className="columna solo-movil" style={{ gap: 8 }}>
           {avisos.map((a) => (
             <AvisoBanner
               key={a.id}
@@ -78,6 +79,7 @@ export default function PanelEquipo({
         </div>
       </div>
 
+      <div className="rejilla dos-uno">
       {incidencias.length > 0 && (
         <div className="tarjeta">
           <header>
@@ -153,7 +155,10 @@ export default function PanelEquipo({
         )}
       </div>
 
-      <div className="fila" style={{ gap: 10, flexWrap: 'wrap' }}>
+      </div>
+
+      {/* En escritorio estos accesos están en la barra lateral. */}
+      <div className="fila solo-movil" style={{ gap: 10, flexWrap: 'wrap' }}>
         <Link className="btn crece" href={`${base}/admin/ausencias`}>
           Ausencias
           {ausenciasPendientes > 0 && (

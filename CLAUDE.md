@@ -125,6 +125,23 @@ Tipos de fichaje: `entrada → pausa_inicio ⇄ pausa_fin → salida`.
 - El sello se activa poniendo `LOGO_SRC` en `lib/constants.ts`; `Marca` y
   `Sello` degradan al nombre escrito si no está.
 
+## Consola de administración
+`/admin/*` va envuelto en `app/admin/layout.tsx` → `components/ConsolaAdmin.tsx`:
+barra lateral fija, barra superior con el título de la sección y la campana de
+avisos. **Es la misma app, no una versión aparte**: por debajo de 960 px la
+lateral desaparece, vuelve la barra inferior y todo queda como en móvil. Las
+consultas que necesita la lateral (avisos sin leer, ausencias pendientes) se
+hacen en el layout, no en cada página.
+
+- Las páginas de `/admin` **no** ponen `<Cabecera>`: el título lo pone la
+  consola a partir de la ruta.
+- `.solo-movil` y `.solo-escritorio` esconden lo que sobra en cada tamaño: en
+  escritorio los avisos viven en la campana y los accesos en la lateral, así
+  que sus versiones en línea se ocultan.
+- La demo replica la consola en `app/demo/admin/layout.tsx` con `base="/demo"`.
+- El corte es 960 px. Si lo cambias, cámbialo en todas las reglas del bloque
+  «Consola de administración» de `globals.css` a la vez.
+
 ## Convenciones
 - Datos en Server Components; mutaciones en Server Actions (`app/actions.ts`) y
   luego `revalidatePath`.

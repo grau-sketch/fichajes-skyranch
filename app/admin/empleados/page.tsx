@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import Cabecera from '@/components/Cabecera'
 import BuscadorDireccion from '@/components/BuscadorDireccion'
 import CampoPassword from '@/components/CampoPassword'
 import Formulario from '@/components/Formulario'
@@ -38,7 +37,6 @@ export default async function Empleados() {
 
   return (
     <>
-      <Cabecera titulo="Personal y centros" volver="/admin" />
       <main className="pagina">
         {/* ------------------------------- Centros ------------------------------- */}
         <div className="tarjeta">

@@ -11,6 +11,10 @@ Google Play.
 - **Dos tipos de usuario**: el administrador crea centros y da de alta a los
   trabajadores desde la propia app, corrige fichajes y descarga los informes; el
   trabajador solo ficha y consulta **su horario**.
+- **Consola de escritorio para el administrador**: en ordenador `/admin` se
+  abre con barra lateral fija, campana de avisos y el ancho completo para las
+  tablas de informes. La misma app en el móvil se pliega a la versión de
+  siempre, así que no hay dos versiones que mantener.
 - **Informes** descargables en CSV (Excel) y en PDF desde el propio navegador,
   por empleado o de todo el equipo, en dos niveles: resumen por jornada e
   **historial completo de movimientos** con las correcciones.

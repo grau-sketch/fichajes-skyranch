@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Cabecera from '@/components/Cabecera'
 import Formulario from '@/components/Formulario'
 import {
   borrarPlantilla,
@@ -63,7 +62,6 @@ export default async function PlanificarTurnos({
 
   return (
     <>
-      <Cabecera titulo="Planificar turnos" subtitulo="Patrón semanal y calendario" volver="/admin" />
       <main className="pagina">
         <div className="tarjeta columna">
           <div>

@@ -1,10 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
 import { useDemo } from '@/components/DemoProvider'
 import ListaAusencias from '@/components/ListaAusencias'
-import Marca from '@/components/Marca'
 import PedirAusencia from '@/components/PedirAusencia'
 import { resumenVacaciones } from '@/lib/ausencias'
 import { DIAS_VACACIONES_MINIMO, type TipoAusencia } from '@/lib/constants'
@@ -36,18 +34,6 @@ export default function Vista() {
 
   return (
     <>
-      <header className="cabecera">
-        <div className="cabecera-inner">
-          <div className="crece">
-            <Marca />
-            <Link href="/demo/admin" className="mini suave" style={{ display: 'block' }}>
-              ← Volver
-            </Link>
-            <h1>Ausencias</h1>
-            <p className="quien">Vacaciones y bajas · {anio}</p>
-          </div>
-        </div>
-      </header>
 
       <main className="pagina">
         <div className="tarjeta">

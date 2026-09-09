@@ -37,17 +37,6 @@ export default function Vista() {
 
   return (
     <>
-      <header className="cabecera">
-        <div className="cabecera-inner">
-          <div className="crece">
-            <Link href="/demo/admin" className="mini suave">
-              ← Volver
-            </Link>
-            <h1>Planificar turnos</h1>
-            <p className="quien">Patrón semanal y calendario</p>
-          </div>
-        </div>
-      </header>
 
       <main className="pagina">
         <div className="tarjeta columna">
