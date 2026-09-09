@@ -11,7 +11,7 @@ export const MARCA_LUGAR = 'Rozas de Puerto Real · Madrid'
  * este null por '/marca/logo.png'. Mientras sea null se muestra el nombre
  * escrito y el círculo con las iniciales, sin imágenes rotas.
  */
-export const LOGO_SRC: string | null = null
+export const LOGO_SRC: string | null = '/marca/logo.png'
 
 export const ROLES = ['admin', 'encargado', 'empleado'] as const
 export type Rol = (typeof ROLES)[number]
