@@ -13,7 +13,6 @@ export default function Login({
       <div className="centrado columna" style={{ gap: 10, marginBottom: 12 }}>
         <Sello />
         <h1>Skyranch</h1>
-        <p className="suave pequeno">Registro de jornada</p>
       </div>
 
       {searchParams.error === 'sin-perfil' && (

@@ -107,15 +107,20 @@ export default function ConsolaAdmin({
           </Link>
         ))}
 
-        <p className="seccion">Lo mío</p>
-        <Link href={`${base}/fichar`}>
-          {ICONOS.fichar}
-          Fichar
-        </Link>
-        <Link href={`${base}/turnos`}>
-          {ICONOS.turnos}
-          Mi horario
-        </Link>
+        {/* El administrador no ficha; el encargado sí, y necesita su horario. */}
+        {!esAdmin && (
+          <>
+            <p className="seccion">Lo mío</p>
+            <Link href={`${base}/fichar`} className={activo(`${base}/fichar`) ? 'activo' : ''}>
+              {ICONOS.fichar}
+              Fichar
+            </Link>
+            <Link href={`${base}/turnos`} className={activo(`${base}/turnos`) ? 'activo' : ''}>
+              {ICONOS.turnos}
+              Mi horario
+            </Link>
+          </>
+        )}
 
         <div className="pie">
           <p className="mini suave truncar">{nombre}</p>

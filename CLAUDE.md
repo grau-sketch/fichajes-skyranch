@@ -125,6 +125,21 @@ Tipos de fichaje: `entrada → pausa_inicio ⇄ pausa_fin → salida`.
 - El sello se activa poniendo `LOGO_SRC` en `lib/constants.ts`; `Marca` y
   `Sello` degradan al nombre escrito si no está.
 
+## Roles y accesos
+- **El administrador no ficha.** `/fichar` y `/turnos` le redirigen a `/admin`,
+  su barra inferior son las secciones de la consola y la lateral no tiene
+  «Lo mío». El `encargado` sí ficha y sí tiene horario propio.
+- `/` reparte por rol: admin a `/admin`, el resto a `/fichar`.
+
+## PIN de acceso rápido
+`lib/pin.ts` + `components/BloqueoPin.tsx`. **No es autenticación**: es un
+cierre local encima de la sesión de Supabase, para no escribir nombre y
+contraseña cada mañana. Se guarda el hash con sal en `localStorage` y el estado
+«abierto» en `sessionStorage`, así que al cerrar la pestaña vuelve a pedirlo.
+Cinco fallos y manda a `/login`. La interfaz lo dice tal cual: es una comodidad,
+lo que protege los datos sigue siendo la contraseña. No lo conviertas en el
+único factor ni lo uses para decidir permisos.
+
 ## Consola de administración
 `/admin/*` va envuelto en `app/admin/layout.tsx` → `components/ConsolaAdmin.tsx`:
 barra lateral fija, barra superior con el título de la sección y la campana de

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import BloqueoPin from '@/components/BloqueoPin'
 import Nav from '@/components/Nav'
 import RegistrarSW from '@/components/RegistrarSW'
 import { supabaseConfigurado } from '@/lib/supabase/configurado'
@@ -47,6 +48,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         {children}
         {rol && <Nav rol={rol} />}
+        {/* El PIN solo tiene sentido con sesión abierta detrás. */}
+        {rol && <BloqueoPin />}
         <RegistrarSW />
       </body>
     </html>

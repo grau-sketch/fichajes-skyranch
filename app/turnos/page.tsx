@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import Cabecera from '@/components/Cabecera'
 import CalendarioTurnos from '@/components/CalendarioTurnos'
 import ListaAusencias from '@/components/ListaAusencias'
@@ -15,6 +16,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function MiHorario() {
   const perfil = await requerirPerfil()
+  // El administrador no tiene turnos propios que consultar.
+  if (perfil.rol === 'admin') redirect('/admin')
   const supabase = createClient()
   const hoy = hoyLocal()
   const anio = Number(hoy.slice(0, 4))

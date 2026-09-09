@@ -1,3 +1,4 @@
+import AjustePin from '@/components/AjustePin'
 import PanelEquipo, { type FilaEquipo } from '@/components/PanelEquipo'
 import { TOLERANCIA_ENTRADA_MIN, TOLERANCIA_SALIDA_MIN, TZ } from '@/lib/constants'
 import { finTurno, hoyLocal, instanteLocal, sumarDias } from '@/lib/fechas'
@@ -116,6 +117,8 @@ export default async function Admin() {
         esAdmin={gestor.rol === 'admin'}
         ausenciasPendientes={ausenciasPendientes}
       />
+
+      <AjustePin nombre={gestor.nombre} />
     </main>
   )
 }

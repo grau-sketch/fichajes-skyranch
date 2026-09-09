@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import AvisoBanner from '@/components/AvisoBanner'
 import AvisosPush from '@/components/AvisosPush'
+import AjustePin from '@/components/AjustePin'
 import ParteTrabajo from '@/components/ParteTrabajo'
 import Cabecera from '@/components/Cabecera'
 import Reloj from '@/components/Reloj'
@@ -16,6 +18,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function Fichar() {
   const perfil = await requerirPerfil()
+  // El administrador no ficha: su sitio es la consola.
+  if (perfil.rol === 'admin') redirect('/admin')
   const supabase = createClient()
   const hoy = hoyLocal()
 
@@ -131,6 +135,8 @@ export default async function Fichar() {
         </div>
 
         <ParteTrabajo fecha={hoy} texto={parte?.texto ?? ''} />
+
+        <AjustePin nombre={perfil.nombre} />
 
         <AvisosPush vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
 
