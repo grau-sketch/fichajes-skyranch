@@ -215,6 +215,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 
 .punto { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
 
+/* --- Estado de presencia, en grande ------------------------------------- */
+.estado-grande {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.estado-grande .punto {
+  width: 15px;
+  height: 15px;
+}
+.estado-grande.dentro { color: var(--ok); }
+.estado-grande.pausa { color: var(--aviso); }
+.estado-grande.fuera { color: var(--texto-suave); }
+
 /* --- Reloj / cifras ------------------------------------------------------ */
 .cifra {
   font-size: 40px;

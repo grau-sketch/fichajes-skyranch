@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import CabeceraDemo from '@/components/CabeceraDemo'
 import { DemoProvider } from '@/components/DemoProvider'
 import Nav from '@/components/Nav'
 import { demoActiva } from '@/lib/supabase/configurado'
@@ -15,8 +14,9 @@ export default function LayoutDemo({ children }: { children: React.ReactNode }) 
 
   return (
     <DemoProvider>
-      <CabeceraDemo />
       {children}
+      {/* Se pasa rol admin para que la barra muestre también "Equipo": así se
+          puede recorrer la parte de administración desde la propia demo. */}
       <Nav rol="admin" base="/demo" />
     </DemoProvider>
   )

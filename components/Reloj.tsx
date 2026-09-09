@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { registrarFichaje } from '@/app/actions'
 import {
+  ETIQUETA_ESTADO,
   ETIQUETA_TIPO,
   PRECISION_ACEPTABLE_M,
   SIGUIENTES,
   estadoDesdeUltimo,
   type TipoFichaje,
 } from '@/lib/constants'
-import { fechaLocal, formatMinutos, horaLocal } from '@/lib/fechas'
+import { fechaLocal, horaLocal } from '@/lib/fechas'
 import { distanciaM, formatearDistancia, pedirPosicion } from '@/lib/geo'
 import { agruparJornadas } from '@/lib/jornada'
 import type { Fichaje } from '@/lib/types'
@@ -83,7 +84,9 @@ export default function Reloj({
 
   useEffect(() => {
     setAhora(new Date())
-    const id = setInterval(() => setAhora(new Date()), 1000)
+    // Nada cuenta en vivo en pantalla; basta con refrescar de vez en cuando
+    // para que el corte de día natural sea correcto.
+    const id = setInterval(() => setAhora(new Date()), 30000)
     return () => clearInterval(id)
   }, [])
 
@@ -100,17 +103,12 @@ export default function Reloj({
   const estado = estadoDesdeUltimo(ultimo)
   const permitidos = SIGUIENTES[ultimo ?? 'ninguno']
 
-  const { abierta, minutosHoy } = useMemo(() => {
-    const ref = ahora ?? new Date()
-    const jornadas = agruparJornadas(fichajes, ref, tz)
-    const hoy = fechaLocal(ref, tz)
-    return {
-      abierta: jornadas.find((j) => j.abierta) ?? null,
-      minutosHoy: jornadas
-        .filter((j) => j.fecha === hoy)
-        .reduce((s, j) => s + j.minutos_trabajados, 0),
-    }
-  }, [fichajes, ahora, tz])
+  // Solo interesa si hay jornada abierta y desde cuándo. El total trabajado no
+  // se muestra a la persona: se consulta desde los informes.
+  const abierta = useMemo(
+    () => agruparJornadas(fichajes, ahora ?? new Date(), tz).find((j) => j.abierta) ?? null,
+    [fichajes, ahora, tz],
+  )
 
   const deHoy = useMemo(() => {
     if (!ahora) return []
@@ -274,31 +272,27 @@ export default function Reloj({
 
   return (
     <div className="columna" style={{ gap: 14 }}>
-      <div className="tarjeta columna" style={{ gap: 14, alignItems: 'stretch' }}>
+      <div className="tarjeta columna" style={{ gap: 16, alignItems: 'stretch' }}>
         <div className="fila entre">
-          <span
-            className={`pill ${estado === 'dentro' ? 'ok' : estado === 'pausa' ? 'aviso' : ''}`}
-          >
-            <span className="punto" />
-            {estado === 'dentro' ? 'Trabajando' : estado === 'pausa' ? 'En pausa' : 'Fuera'}
-          </span>
           {centro ? (
             <span className="mini suave truncar">{centro.nombre}</span>
           ) : (
             <span className="pill aviso">Sin centro asignado</span>
           )}
+          {abierta && <span className="pill marca">Jornada abierta</span>}
         </div>
 
-        <div className="centrado">
-          <p className="cifra mono">{ahora ? formatMinutos(minutosHoy) : '—'}</p>
-          <p className="mini suave">
+        <div className="centrado columna" style={{ gap: 4 }}>
+          <p className={`estado-grande ${estado}`}>
+            <span className="punto" />
+            {ETIQUETA_ESTADO[estado]}
+          </p>
+          <p className="pequeno suave">
             {abierta
               ? `Desde las ${horaLocal(abierta.entrada, tz)}${
-                  abierta.minutos_pausa > 0
-                    ? ` · ${formatMinutos(abierta.minutos_pausa)} de pausa`
-                    : ''
+                  abierta.minutos_pausa > 0 ? ` · con pausa` : ''
                 }`
-              : 'Trabajado hoy'}
+              : 'Sin jornada abierta'}
           </p>
         </div>
 
@@ -382,7 +376,6 @@ export default function Reloj({
       <div className="tarjeta">
         <header>
           <h2>Movimientos de hoy</h2>
-          {abierta && <span className="pill marca">Jornada abierta</span>}
         </header>
         {deHoy.length === 0 ? (
           <p className="vacio">Todavía no has fichado hoy</p>

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import AvisoBanner from '@/components/AvisoBanner'
+import ReiniciarDemo from '@/components/ReiniciarDemo'
 import { useDemo } from '@/components/DemoProvider'
 import Reloj from '@/components/Reloj'
 import { TZ, type TipoFichaje } from '@/lib/constants'
@@ -166,6 +167,10 @@ export default function Vista() {
         <p className="mini suave centrado">
           Tu ubicación se registra solo en el momento de fichar, para comprobar que estás en el
           centro de trabajo. No se hace seguimiento durante la jornada.
+        </p>
+
+        <p className="centrado">
+          <ReiniciarDemo />
         </p>
       </main>
     </>
