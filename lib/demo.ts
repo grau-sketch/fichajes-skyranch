@@ -5,7 +5,7 @@
 import { TZ } from './constants'
 import { hoyLocal, instanteLocal, sumarDias } from './fechas'
 import { accesoDeNombre } from './usuario'
-import type { Aviso, Centro, Fichaje, Perfil, PlantillaTurno, Turno } from './types'
+import type { Ausencia, Aviso, Centro, Fichaje, Perfil, PlantillaTurno, Turno } from './types'
 
 export const HOY = hoyLocal(TZ)
 export const AYER = sumarDias(HOY, -1)
@@ -32,8 +32,8 @@ export const CENTROS: Centro[] = [
     direccion: 'Calle Logroño, Entrepinos, 28648 Rozas de Puerto Real (Madrid)',
     lat: 40.317603,
     lon: -4.474293,
-    // Es una finca, no un local de calle: 400 m cubre todo el recinto.
-    radio_m: 400,
+    // Es una finca, no un local de calle: 500 m, lo medido en el recinto.
+    radio_m: 500,
     tz: TZ,
     activo: true,
   },
@@ -56,6 +56,7 @@ function perfil(
     rol,
     centro_id: 'skyranch',
     horas_semana,
+    dias_vacaciones: 30,
     activo: true,
   }
 }
@@ -215,6 +216,45 @@ export const PLANTILLAS: PlantillaTurno[] = Object.entries(HORARIOS).flatMap(([e
 )
 
 // ---------------------------------------------------------------------------
+// Ausencias
+// ---------------------------------------------------------------------------
+function au(
+  empleado_id: string,
+  tipo: Ausencia['tipo'],
+  desde: string,
+  hasta: string,
+  estado: Ausencia['estado'],
+  motivo: string | null = null,
+): Ausencia {
+  return {
+    id: `ausencia-${empleado_id}-${desde}`,
+    empleado_id,
+    tipo,
+    desde,
+    hasta,
+    motivo,
+    estado,
+    justificante: null,
+    creado_por: empleado_id,
+    creado_en: `${desde}T08:00:00.000Z`,
+    decidido_por: estado === 'pendiente' ? null : 'carlos',
+    decidido_en: estado === 'pendiente' ? null : `${desde}T09:00:00.000Z`,
+    nota_decision: null,
+  }
+}
+
+const ANIO = HOY.slice(0, 4)
+
+export const AUSENCIAS: Ausencia[] = [
+  // Gilbert ya disfrutó una semana en agosto.
+  au('gilbert', 'vacaciones', `${ANIO}-08-10`, `${ANIO}-08-16`, 'aprobada'),
+  // Gilenis tiene pedida una semana el mes que viene, sin decidir todavía.
+  au('gilenis', 'vacaciones', sumarDias(HOY, 24), sumarDias(HOY, 30), 'pendiente', 'Boda de mi hermana'),
+  // Pedro estuvo de baja los dos días que aparecían sin fichar.
+  au('pedro', 'baja', AYER, HOY, 'aprobada', 'Lumbalgia'),
+]
+
+// ---------------------------------------------------------------------------
 // Avisos
 // ---------------------------------------------------------------------------
 export const AVISOS_ADMIN: Aviso[] = [
@@ -231,15 +271,17 @@ export const AVISOS_ADMIN: Aviso[] = [
     leido_en: null,
   },
   {
-    id: 'aviso-sin-fichar',
-    empleado_id: 'pedro',
+    // Pedro está de baja aprobada, así que su turno sin fichar ya no es aviso;
+    // lo que espera decisión es la semana de vacaciones que pide Gilenis.
+    id: 'aviso-ausencia',
+    empleado_id: 'gilenis',
     destinatario_id: ADMIN.id,
-    turno_id: `turno-pedro-${AYER}-08:00`,
+    turno_id: null,
     fichaje_id: null,
-    tipo: 'turno_sin_fichar',
-    titulo: 'Turno sin fichar',
-    cuerpo: `Pedro Muñoz tenía turno el ${fechaLegible(AYER)} de 08:00 a 14:00 y no ha fichado nada.`,
-    enviado_en: iso(AYER, '14:20'),
+    tipo: 'ausencia_pendiente',
+    titulo: 'Solicitud de ausencia',
+    cuerpo: `Gilenis Pérez pide vacaciones del ${fechaLegible(sumarDias(HOY, 24))} al ${fechaLegible(sumarDias(HOY, 30))}.`,
+    enviado_en: iso(HOY, '09:10'),
     leido_en: null,
   },
 ]

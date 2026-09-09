@@ -8,7 +8,7 @@ import {
 } from '@/lib/demoEstado'
 
 // Al subir la versión se descarta el estado guardado de versiones anteriores.
-const CLAVE = 'fichajes:demo:v2'
+const CLAVE = 'fichajes:demo:v3'
 
 type Contexto = {
   estado: EstadoDemo

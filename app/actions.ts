@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Rol, TipoFichaje } from '@/lib/constants'
-import { ROLES, TIPOS_FICHAJE } from '@/lib/constants'
+import type { Rol, TipoAusencia, TipoFichaje } from '@/lib/constants'
+import { AUSENCIAS_SOLICITABLES, ROLES, TIPOS_AUSENCIA, TIPOS_FICHAJE } from '@/lib/constants'
 import { geocodificar } from '@/lib/geocodificar'
 import { notificarAvisosDeFichaje } from '@/lib/notificar'
 import { requerirGestor, requerirPerfil } from '@/lib/sesion'
@@ -237,6 +237,115 @@ export async function corregirHora(_previo: unknown, form: FormData) {
   revalidatePath('/admin/informes')
   revalidatePath('/jornadas')
   return { ok: 'Fichaje corregido' }
+}
+
+// --- Ausencias: vacaciones, bajas, permisos y faltas ------------------------
+
+const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Pide una ausencia. Si la pide la propia persona queda pendiente; si la
+ * registra un responsable entra ya aprobada (y la falta solo puede él).
+ */
+export async function solicitarAusencia(_previo: unknown, form: FormData) {
+  await requerirPerfil()
+
+  const tipo = String(form.get('tipo') ?? '') as TipoAusencia
+  const desde = String(form.get('desde') ?? '')
+  const hasta = String(form.get('hasta') ?? '')
+  const motivo = String(form.get('motivo') ?? '')
+  const empleado = String(form.get('empleado_id') ?? '')
+  const justificante = String(form.get('justificante') ?? '')
+
+  if (!TIPOS_AUSENCIA.includes(tipo)) return { error: 'Tipo de ausencia no válido' }
+  if (!FECHA_ISO.test(desde) || !FECHA_ISO.test(hasta)) return { error: 'Indica las fechas' }
+  if (hasta < desde) return { error: 'La fecha de fin es anterior a la de inicio' }
+
+  const supabase = createClient()
+  const { error } = await supabase.rpc('ausencia_solicitar', {
+    p_tipo: tipo,
+    p_desde: desde,
+    p_hasta: hasta,
+    p_motivo: motivo || null,
+    p_empleado: empleado || null,
+    p_justificante: justificante || null,
+  })
+  if (error) return { error: limpiarError(error.message) }
+
+  revalidatePath('/turnos')
+  revalidatePath('/admin')
+  revalidatePath('/admin/ausencias')
+  return {
+    ok: AUSENCIAS_SOLICITABLES.includes(tipo)
+      ? 'Solicitud enviada. Tu responsable la tiene que aprobar.'
+      : 'Ausencia registrada',
+  }
+}
+
+export async function decidirAusencia(_previo: unknown, form: FormData) {
+  await requerirPerfil()
+
+  const id = String(form.get('id') ?? '')
+  const estado = String(form.get('estado') ?? '')
+  const nota = String(form.get('nota') ?? '')
+
+  if (!id) return { error: 'Ausencia no válida' }
+  if (!['aprobada', 'rechazada', 'cancelada'].includes(estado)) {
+    return { error: 'Decisión no válida' }
+  }
+
+  const supabase = createClient()
+  const { error } = await supabase.rpc('ausencia_decidir', {
+    p_ausencia: id,
+    p_estado: estado,
+    p_nota: nota || null,
+  })
+  if (error) return { error: limpiarError(error.message) }
+
+  revalidatePath('/turnos')
+  revalidatePath('/admin')
+  revalidatePath('/admin/ausencias')
+  const etiquetas: Record<string, string> = {
+    aprobada: 'Ausencia aprobada',
+    rechazada: 'Solicitud rechazada',
+    cancelada: 'Solicitud cancelada',
+  }
+  return { ok: etiquetas[estado] }
+}
+
+/**
+ * URL temporal para ver un justificante. El bucket es privado: puede contener
+ * un parte médico, así que nunca se sirve por enlace permanente.
+ */
+export async function urlJustificante(ruta: string): Promise<Resultado<string>> {
+  await requerirPerfil()
+  if (!ruta) return { ok: false, error: 'Sin justificante' }
+
+  const supabase = createClient()
+  const { data, error } = await supabase.storage
+    .from('justificantes')
+    .createSignedUrl(ruta, 120)
+
+  if (error || !data?.signedUrl) return { ok: false, error: 'No se ha podido abrir el archivo' }
+  return { ok: true, datos: data.signedUrl }
+}
+
+// --- Parte de trabajo -------------------------------------------------------
+
+export async function guardarParte(_previo: unknown, form: FormData) {
+  await requerirPerfil()
+  const fecha = String(form.get('fecha') ?? '')
+  const texto = String(form.get('texto') ?? '')
+
+  if (!FECHA_ISO.test(fecha)) return { error: 'Fecha no válida' }
+  if (texto.length > 2000) return { error: 'El parte es demasiado largo' }
+
+  const supabase = createClient()
+  const { error } = await supabase.rpc('parte_guardar', { p_fecha: fecha, p_texto: texto })
+  if (error) return { error: limpiarError(error.message) }
+
+  revalidatePath('/fichar')
+  return { ok: texto.trim() ? 'Parte guardado' : 'Parte borrado' }
 }
 
 // --- Turnos ------------------------------------------------------------------

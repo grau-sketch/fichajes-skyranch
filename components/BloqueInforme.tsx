@@ -2,12 +2,16 @@ import HistorialFichajes from '@/components/HistorialFichajes'
 import { ETIQUETA_ANOMALIA } from '@/lib/constants'
 import { formatFechaLarga, formatHoras, formatMinutos, horaLocal } from '@/lib/fechas'
 import { minutosTurno, type Jornada } from '@/lib/jornada'
-import type { Fichaje, Perfil, Turno } from '@/lib/types'
+import { ETIQUETA_AUSENCIA } from '@/lib/constants'
+import { diasEntre, formatFechaCorta } from '@/lib/fechas'
+import type { Ausencia, Fichaje, Perfil, Turno } from '@/lib/types'
 
 export type BloqueDatos = {
   perfil: Perfil
   jornadas: Jornada[]
   fichajes: Fichaje[]
+  ausencias: Ausencia[]
+  diasAusencia: number
   sinFichar: Turno[]
   corregidos: number
   trabajado: number
@@ -43,6 +47,7 @@ export default function BloqueInforme({
           <p className="mini suave">
             {b.perfil.horas_semana} h/semana · {b.jornadas.length} jornadas
             {b.aRevisar > 0 && ` · ${b.aRevisar} a revisar`}
+            {b.diasAusencia > 0 && ` · ${b.diasAusencia} días de ausencia`}
             {b.sinFichar.length > 0 && ` · ${b.sinFichar.length} sin fichar`}
             {b.corregidos > 0 && ` · ${b.corregidos} tocados a mano`}
           </p>
@@ -103,6 +108,24 @@ export default function BloqueInforme({
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+
+      {b.ausencias.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <h3 style={{ marginBottom: 8 }}>Ausencias del periodo</h3>
+          <div className="lista">
+            {b.ausencias.map((a) => (
+              <div key={a.id} className="item">
+                <span className="crece">{ETIQUETA_AUSENCIA[a.tipo]}</span>
+                <span className="mono suave pequeno">
+                  {formatFechaCorta(a.desde)}
+                  {a.hasta !== a.desde && ` → ${formatFechaCorta(a.hasta)}`}
+                </span>
+                <span className="pill mono">{diasEntre(a.desde, a.hasta)} d</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

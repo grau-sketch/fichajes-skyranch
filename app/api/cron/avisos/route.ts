@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { TOLERANCIA_ENTRADA_MIN, TOLERANCIA_SALIDA_MIN, TZ } from '@/lib/constants'
+import { DIAS_RETENCION_UBICACION, TOLERANCIA_ENTRADA_MIN, TOLERANCIA_SALIDA_MIN, TZ } from '@/lib/constants'
+import { diasAusentes } from '@/lib/ausencias'
 import { finTurno, horaLocal, hoyLocal, instanteLocal, sumarDias } from '@/lib/fechas'
 import { agruparJornadas } from '@/lib/jornada'
 import { enviarPush, type Suscripcion } from '@/lib/push'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { Fichaje, Perfil, Turno } from '@/lib/types'
+import type { Ausencia, Fichaje, Perfil, Turno } from '@/lib/types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,11 +33,18 @@ export async function GET(peticion: NextRequest) {
   const hoy = hoyLocal()
   const ayer = sumarDias(hoy, -1)
 
-  const [resTurnos, resFichajes, resPerfiles, resSuscripciones] = await Promise.all([
+  const [resTurnos, resFichajes, resPerfiles, resSuscripciones, resAusencias] = await Promise.all([
     supabase.from('turnos').select('*').in('fecha', [ayer, hoy]).neq('estado', 'cancelado'),
     supabase.from('fichajes').select('*').gte('ts', `${sumarDias(ayer, -1)}T00:00:00`),
     supabase.from('perfiles').select('*').eq('activo', true),
     supabase.from('push_suscripciones').select('*'),
+    // Quien está de vacaciones o de baja no recibe avisos de fichaje.
+    supabase
+      .from('ausencias')
+      .select('*')
+      .eq('estado', 'aprobada')
+      .lte('desde', hoy)
+      .gte('hasta', ayer),
   ])
 
   const turnos = (resTurnos.data ?? []) as Turno[]
@@ -46,6 +54,11 @@ export async function GET(peticion: NextRequest) {
     const lista = suscripcionesPor.get(s.empleado_id) ?? []
     lista.push({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth })
     suscripcionesPor.set(s.empleado_id, lista)
+  }
+
+  const ausenciasPor = new Map<string, Ausencia[]>()
+  for (const a of (resAusencias.data ?? []) as Ausencia[]) {
+    ausenciasPor.set(a.empleado_id, [...(ausenciasPor.get(a.empleado_id) ?? []), a])
   }
 
   const fichajesPor = new Map<string, Fichaje[]>()
@@ -80,9 +93,17 @@ export async function GET(peticion: NextRequest) {
     cuerpo: string
   }[] = []
 
+  let saltadosPorAusencia = 0
+
   for (const t of turnos) {
     const perfil = perfiles.get(t.empleado_id)
     if (!perfil) continue
+
+    // Si ese día tiene una ausencia aprobada, no se espera que fiche.
+    if (diasAusentes(ausenciasPor.get(t.empleado_id) ?? [], t.fecha, t.fecha).size > 0) {
+      saltadosPorAusencia += 1
+      continue
+    }
 
     const jornadas = agruparJornadas(fichajesPor.get(t.empleado_id) ?? [], ahora, TZ)
     const delDia = jornadas.filter((j) => j.fecha === t.fecha)
@@ -170,12 +191,22 @@ export async function GET(peticion: NextRequest) {
     await supabase.from('push_suscripciones').delete().in('endpoint', caducados)
   }
 
+  // Minimización de datos: las coordenadas exactas se borran a los 6 meses; el
+  // fichaje y la distancia se conservan los 4 años que exige la ley.
+  let ubicacionesPurgadas = 0
+  const { data: purgadas } = await supabase.rpc('purgar_ubicaciones', {
+    p_dias: DIAS_RETENCION_UBICACION,
+  })
+  if (typeof purgadas === 'number') ubicacionesPurgadas = purgadas
+
   return NextResponse.json({
     ok: true,
     momento: ahora.toISOString(),
     turnos_revisados: turnos.length,
+    turnos_con_ausencia: saltadosPorAusencia,
     avisos_creados: creados,
     push_enviados: notificados,
     suscripciones_caducadas: caducados.length,
+    ubicaciones_purgadas: ubicacionesPurgadas,
   })
 }

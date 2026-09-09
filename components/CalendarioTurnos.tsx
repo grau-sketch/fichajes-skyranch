@@ -12,8 +12,10 @@ import {
   inicioSemana,
   sumarDias,
 } from '@/lib/fechas'
+import { ABREVIA_AUSENCIA, ausenciaDelDia } from '@/lib/ausencias'
+import { ETIQUETA_AUSENCIA } from '@/lib/constants'
 import { minutosTurno } from '@/lib/jornada'
-import type { Turno } from '@/lib/types'
+import type { Ausencia, Turno } from '@/lib/types'
 
 type Vista = 'semana' | 'mes'
 
@@ -36,10 +38,13 @@ const diaYMes = (fecha: string, tz: string) =>
  */
 export default function CalendarioTurnos({
   turnos,
+  ausencias = [],
   tz = TZ,
   vistaInicial = 'semana',
 }: {
   turnos: Turno[]
+  /** Ausencias aprobadas: el día se marca y el turno deja de esperarse. */
+  ausencias?: Ausencia[]
   tz?: string
   vistaInicial?: Vista
 }) {
@@ -66,8 +71,12 @@ export default function CalendarioTurnos({
     return Array.from({ length: total }, (_, i) => sumarDias(desde, i))
   }, [desde, hasta])
 
+  const ausenciaDe = (fecha: string) => ausenciaDelDia(ausencias, fecha)
+
   const minutosPeriodo = dias.reduce(
-    (s, d) => s + (porDia.get(d) ?? []).reduce((x, t) => x + minutosTurno(t), 0),
+    (s, d) =>
+      s +
+      (ausenciaDe(d) ? 0 : (porDia.get(d) ?? []).reduce((x, t) => x + minutosTurno(t), 0)),
     0,
   )
 
@@ -143,13 +152,19 @@ export default function CalendarioTurnos({
         <div>
           {dias.map((d) => {
             const delDia = porDia.get(d) ?? []
+            const ausente = ausenciaDe(d)
             return (
               <div key={d} className={`cal-dia ${d === hoy ? 'hoy' : ''}`}>
                 <div className="fecha">
                   <p className="dia">{nombreCorto(d)}</p>
                   <p className="num">{Number(d.slice(8, 10))}</p>
                 </div>
-                {delDia.length === 0 ? (
+                {ausente ? (
+                  <span className="turno-chip ausencia">
+                    <span className="horas">{ETIQUETA_AUSENCIA[ausente.tipo]}</span>
+                    {ausente.motivo && <span className="detalle">{ausente.motivo}</span>}
+                  </span>
+                ) : delDia.length === 0 ? (
                   <p className="libre">Libre</p>
                 ) : (
                   <div className="fila crece" style={{ gap: 8, flexWrap: 'wrap' }}>
@@ -189,23 +204,30 @@ export default function CalendarioTurnos({
 
             {dias.map((d) => {
               const delDia = porDia.get(d) ?? []
+              const ausente = ausenciaDe(d)
               return (
                 <button
                   key={d}
                   type="button"
-                  className={`cal-celda ${delDia.length > 0 ? 'con-turno' : ''} ${
-                    d === hoy ? 'hoy' : ''
-                  }`}
+                  className={`cal-celda ${
+                    ausente ? 'ausencia' : delDia.length > 0 ? 'con-turno' : ''
+                  } ${d === hoy ? 'hoy' : ''}`}
                   aria-pressed={diaSel === d}
                   onClick={() => setDiaSel(diaSel === d ? null : d)}
                 >
                   <span className="num">{Number(d.slice(8, 10))}</span>
-                  {delDia.slice(0, 2).map((t) => (
-                    <span key={t.id} className="rango">
-                      {t.hora_inicio.slice(0, 5)}
-                    </span>
-                  ))}
-                  {delDia.length > 2 && <span className="rango">+{delDia.length - 2}</span>}
+                  {ausente ? (
+                    <span className="rango">{ABREVIA_AUSENCIA[ausente.tipo]}</span>
+                  ) : (
+                    <>
+                      {delDia.slice(0, 2).map((t) => (
+                        <span key={t.id} className="rango">
+                          {t.hora_inicio.slice(0, 5)}
+                        </span>
+                      ))}
+                      {delDia.length > 2 && <span className="rango">+{delDia.length - 2}</span>}
+                    </>
+                  )}
                 </button>
               )
             })}
@@ -216,7 +238,12 @@ export default function CalendarioTurnos({
               <h3 style={{ textTransform: 'capitalize' }}>
                 {DIAS_SEMANA[new Date(`${diaSel}T12:00:00Z`).getUTCDay()]} {diaYMes(diaSel, tz)}
               </h3>
-              {turnosSel.length === 0 ? (
+              {ausenciaDe(diaSel) ? (
+                <p className="pequeno">
+                  <strong>{ETIQUETA_AUSENCIA[ausenciaDe(diaSel)!.tipo]}</strong>
+                  {ausenciaDe(diaSel)!.motivo && ` · ${ausenciaDe(diaSel)!.motivo}`}
+                </p>
+              ) : turnosSel.length === 0 ? (
                 <p className="suave pequeno">Día libre</p>
               ) : (
                 turnosSel.map((t) => (

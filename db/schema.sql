@@ -33,9 +33,13 @@ create table if not exists perfiles (
   rol           text not null default 'empleado' check (rol in ('admin','encargado','empleado')),
   centro_id     uuid references centros(id) on delete set null,
   horas_semana  numeric(5,2) not null default 40 check (horas_semana between 0 and 60),
+  -- Días naturales de vacaciones al año (30 es el mínimo legal en España).
+  dias_vacaciones smallint not null default 30 check (dias_vacaciones between 0 and 60),
   activo        boolean not null default true,
   creado_en     timestamptz not null default now()
 );
+
+alter table perfiles add column if not exists dias_vacaciones smallint not null default 30;
 
 -- Alta automática de perfil al crear el usuario en Auth.
 create or replace function crear_perfil_al_registrar()
@@ -142,6 +146,62 @@ returns integer language sql immutable as $$
 $$;
 
 -- ----------------------------------------------------------------------------
+-- Ausencias: vacaciones, bajas, permisos y faltas
+--
+-- Sin esto, una semana de vacaciones se leería como incumplimiento de jornada:
+-- las horas objetivo del periodo se reducen por cada día de ausencia aprobada.
+-- ----------------------------------------------------------------------------
+create table if not exists ausencias (
+  id            uuid primary key default gen_random_uuid(),
+  empleado_id   uuid not null references perfiles(id) on delete cascade,
+  tipo          text not null check (tipo in (
+                  'vacaciones',      -- las pide la persona, las aprueba el responsable
+                  'baja',            -- baja médica
+                  'permiso',         -- permiso retribuido
+                  'asuntos_propios',
+                  'falta'            -- ausencia no justificada: la registra el responsable
+                )),
+  desde         date not null,
+  hasta         date not null,
+  motivo        text,
+  estado        text not null default 'pendiente'
+                check (estado in ('pendiente','aprobada','rechazada','cancelada')),
+  -- Ruta en el bucket privado `justificantes`. Puede ser un parte médico, así
+  -- que es dato de categoría especial: nunca en un bucket público.
+  justificante  text,
+  creado_por    uuid references perfiles(id) on delete set null,
+  creado_en     timestamptz not null default now(),
+  decidido_por  uuid references perfiles(id) on delete set null,
+  decidido_en   timestamptz,
+  nota_decision text,
+  constraint ausencias_rango check (hasta >= desde)
+);
+
+create index if not exists ausencias_empleado_idx on ausencias (empleado_id, desde desc);
+create index if not exists ausencias_rango_idx on ausencias (desde, hasta);
+create index if not exists ausencias_estado_idx on ausencias (estado) where estado = 'pendiente';
+
+-- Días naturales que ocupa una ausencia.
+create or replace function ausencia_dias(p_desde date, p_hasta date)
+returns integer language sql immutable as $$
+  select greatest(0, (p_hasta - p_desde) + 1)
+$$;
+
+-- ----------------------------------------------------------------------------
+-- Parte de trabajo: qué se hizo ese día. En una finca vale más que las horas.
+-- ----------------------------------------------------------------------------
+create table if not exists partes_trabajo (
+  id           uuid primary key default gen_random_uuid(),
+  empleado_id  uuid not null references perfiles(id) on delete cascade,
+  fecha        date not null,
+  texto        text not null,
+  actualizado_en timestamptz not null default now(),
+  unique (empleado_id, fecha)
+);
+
+create index if not exists partes_fecha_idx on partes_trabajo (fecha desc);
+
+-- ----------------------------------------------------------------------------
 -- Avisos y Web Push
 -- ----------------------------------------------------------------------------
 create table if not exists push_suscripciones (
@@ -179,6 +239,8 @@ alter table avisos add constraint avisos_tipo_check check (tipo in (
   'turno_sin_fichar',       -- al responsable: turno pasado sin ningún fichaje
   'fichaje_fuera_radio',    -- al responsable: alguien fichó lejos del centro
   'fichaje_corregido',      -- al empleado: su responsable tocó un fichaje
+  'ausencia_pendiente',     -- al responsable: hay una solicitud que decidir
+  'ausencia_decidida',      -- al empleado: aprobada o rechazada
   'resumen_encargado'
 ));
 
@@ -541,6 +603,172 @@ begin
   return v_nuevo;
 end $$;
 
+-- ----------------------------------------------------------------------------
+-- Solicitar una ausencia (la persona, para sí misma) o registrarla ya decidida
+-- (el responsable). Las faltas solo las puede poner un responsable.
+-- ----------------------------------------------------------------------------
+create or replace function ausencia_solicitar(
+  p_tipo         text,
+  p_desde        date,
+  p_hasta        date,
+  p_motivo       text default null,
+  p_empleado     uuid default null,
+  p_justificante text default null
+) returns ausencias
+language plpgsql security definer set search_path = public as $$
+declare v_para uuid; v_row ausencias; v_gestor boolean;
+begin
+  v_para := coalesce(p_empleado, auth.uid());
+  v_gestor := es_admin() or mi_rol() = 'encargado';
+
+  if v_para <> auth.uid() and not (v_gestor and puedo_ver_empleado(v_para)) then
+    raise exception 'No puedes pedir ausencias en nombre de otra persona';
+  end if;
+  if p_tipo = 'falta' and not v_gestor then
+    raise exception 'Solo un responsable puede registrar una falta';
+  end if;
+  if p_hasta < p_desde then
+    raise exception 'La fecha de fin es anterior a la de inicio';
+  end if;
+  if p_hasta - p_desde > 180 then
+    raise exception 'El periodo es demasiado largo (máximo 6 meses)';
+  end if;
+
+  -- Dos ausencias vigentes no pueden solaparse.
+  if exists (
+    select 1 from ausencias a
+    where a.empleado_id = v_para
+      and a.estado in ('pendiente','aprobada')
+      and a.desde <= p_hasta and a.hasta >= p_desde
+  ) then
+    raise exception 'Ya hay una ausencia en esas fechas';
+  end if;
+
+  insert into ausencias (
+    empleado_id, tipo, desde, hasta, motivo, justificante, creado_por,
+    -- Lo que registra un responsable entra ya aprobado; lo que pide la
+    -- persona queda pendiente de decisión.
+    estado, decidido_por, decidido_en
+  ) values (
+    v_para, p_tipo, p_desde, p_hasta, nullif(trim(p_motivo), ''), p_justificante, auth.uid(),
+    case when v_gestor then 'aprobada' else 'pendiente' end,
+    case when v_gestor then auth.uid() end,
+    case when v_gestor then now() end
+  )
+  returning * into v_row;
+
+  -- Al responsable le llega el aviso de que hay algo que decidir.
+  if v_row.estado = 'pendiente' then
+    perform avisar_responsables(
+      v_para, null, 'ausencia_pendiente',
+      'Solicitud de ausencia',
+      format('%s pide %s del %s al %s.',
+             (select nombre from perfiles where id = v_para),
+             replace(p_tipo, '_', ' '),
+             to_char(p_desde, 'DD/MM/YYYY'),
+             to_char(p_hasta, 'DD/MM/YYYY'))
+    );
+  end if;
+
+  return v_row;
+end $$;
+
+-- Aprobar o rechazar. Solo responsables.
+create or replace function ausencia_decidir(
+  p_ausencia uuid,
+  p_estado   text,
+  p_nota     text default null
+) returns ausencias
+language plpgsql security definer set search_path = public as $$
+declare v_row ausencias;
+begin
+  if p_estado not in ('aprobada','rechazada','cancelada') then
+    raise exception 'Decisión no válida';
+  end if;
+
+  select * into v_row from ausencias where id = p_ausencia;
+  if v_row.id is null then raise exception 'La ausencia no existe'; end if;
+
+  -- La propia persona puede cancelar lo que aún está pendiente.
+  if p_estado = 'cancelada' and v_row.empleado_id = auth.uid() then
+    if v_row.estado <> 'pendiente' then
+      raise exception 'Solo puedes cancelar una solicitud que siga pendiente';
+    end if;
+  elsif not (es_admin() or (mi_rol() = 'encargado' and puedo_ver_empleado(v_row.empleado_id))) then
+    raise exception 'No tienes permiso para decidir esta ausencia';
+  end if;
+
+  if p_estado = 'rechazada' and (p_nota is null or length(trim(p_nota)) < 3) then
+    raise exception 'Rechazar una solicitud necesita motivo';
+  end if;
+
+  update ausencias
+  set estado = p_estado,
+      decidido_por = auth.uid(),
+      decidido_en = now(),
+      nota_decision = nullif(trim(p_nota), '')
+  where id = p_ausencia
+  returning * into v_row;
+
+  if v_row.empleado_id <> auth.uid() then
+    perform avisar_empleado(
+      v_row.empleado_id, null, 'ausencia_decidida',
+      case when p_estado = 'aprobada' then 'Ausencia aprobada' else 'Ausencia rechazada' end,
+      format('%s del %s al %s: %s.%s',
+             initcap(replace(v_row.tipo, '_', ' ')),
+             to_char(v_row.desde, 'DD/MM/YYYY'),
+             to_char(v_row.hasta, 'DD/MM/YYYY'),
+             p_estado,
+             coalesce(' ' || v_row.nota_decision, ''))
+    );
+  end if;
+
+  return v_row;
+end $$;
+
+-- Parte de trabajo del día: lo escribe la propia persona.
+create or replace function parte_guardar(p_fecha date, p_texto text)
+returns partes_trabajo
+language plpgsql security definer set search_path = public as $$
+declare v_row partes_trabajo;
+begin
+  if p_fecha > (current_date + 1) then
+    raise exception 'No se puede escribir el parte de un día futuro';
+  end if;
+
+  if p_texto is null or length(trim(p_texto)) = 0 then
+    delete from partes_trabajo where empleado_id = auth.uid() and fecha = p_fecha;
+    return null;
+  end if;
+
+  insert into partes_trabajo (empleado_id, fecha, texto)
+  values (auth.uid(), p_fecha, trim(p_texto))
+  on conflict (empleado_id, fecha)
+  do update set texto = excluded.texto, actualizado_en = now()
+  returning * into v_row;
+
+  return v_row;
+end $$;
+
+-- ----------------------------------------------------------------------------
+-- Minimización de datos: el fichaje se conserva 4 años, pero las coordenadas
+-- exactas no hacen falta tanto tiempo. Se borran a los 6 meses y se queda la
+-- distancia y el "dentro/fuera", que es lo que tiene valor probatorio.
+-- Llamar desde la tarea programada (ver netlify/functions).
+-- ----------------------------------------------------------------------------
+create or replace function purgar_ubicaciones(p_dias integer default 180)
+returns integer
+language plpgsql security definer set search_path = public as $$
+declare v_n integer;
+begin
+  update fichajes
+  set lat = null, lon = null, precision_m = null
+  where ts < now() - make_interval(days => p_dias)
+    and (lat is not null or lon is not null);
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
+
 -- Materializa turnos a partir del patrón semanal, sin pisar los existentes.
 create or replace function generar_turnos(
   p_empleado uuid,
@@ -613,6 +841,8 @@ alter table plantillas_turno   enable row level security;
 alter table turnos             enable row level security;
 alter table push_suscripciones enable row level security;
 alter table avisos             enable row level security;
+alter table ausencias          enable row level security;
+alter table partes_trabajo     enable row level security;
 
 -- centros: los ve cualquiera autenticado; solo admin los toca.
 drop policy if exists centros_select on centros;
@@ -656,6 +886,18 @@ create policy turnos_gestion on turnos for all to authenticated
   using (es_admin() or (mi_rol() = 'encargado' and puedo_ver_empleado(empleado_id)))
   with check (es_admin() or (mi_rol() = 'encargado' and puedo_ver_empleado(empleado_id)));
 
+-- ausencias: cada uno ve las suyas; el responsable las de su gente. La
+-- escritura va solo por las funciones ausencia_solicitar / ausencia_decidir.
+drop policy if exists ausencias_select on ausencias;
+create policy ausencias_select on ausencias for select to authenticated
+  using (puedo_ver_empleado(empleado_id));
+-- Sin insert/update/delete: el historial de decisiones no se manipula a mano.
+
+-- partes de trabajo: los escribe la persona, los lee su responsable.
+drop policy if exists partes_select on partes_trabajo;
+create policy partes_select on partes_trabajo for select to authenticated
+  using (puedo_ver_empleado(empleado_id));
+
 -- push: cada uno gestiona sus propios dispositivos.
 drop policy if exists push_propio on push_suscripciones;
 create policy push_propio on push_suscripciones for all to authenticated
@@ -674,6 +916,40 @@ create policy avisos_marcar on avisos for update to authenticated
   with check (coalesce(destinatario_id, empleado_id) = auth.uid());
 
 -- ----------------------------------------------------------------------------
+-- Justificantes: bucket PRIVADO
+--
+-- Un parte médico es dato de categoría especial (art. 9 RGPD). El bucket no es
+-- público: se lee siempre por URL firmada de corta duración, generada en el
+-- servidor. Cada persona solo puede subir dentro de su propia carpeta.
+-- ----------------------------------------------------------------------------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'justificantes', 'justificantes', false, 8388608,
+  array['image/jpeg','image/png','image/webp','image/heic','application/pdf']
+)
+on conflict (id) do update
+set public = false,
+    file_size_limit = 8388608,
+    allowed_mime_types = array['image/jpeg','image/png','image/webp','image/heic','application/pdf'];
+
+-- La primera carpeta de la ruta es el id de la persona: justificantes/<uid>/…
+drop policy if exists justificantes_subir on storage.objects;
+create policy justificantes_subir on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'justificantes'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists justificantes_leer on storage.objects;
+create policy justificantes_leer on storage.objects for select to authenticated
+  using (
+    bucket_id = 'justificantes'
+    and puedo_ver_empleado(((storage.foldername(name))[1])::uuid)
+  );
+
+-- Nadie borra ni sobrescribe un justificante desde el cliente.
+
+-- ----------------------------------------------------------------------------
 -- Permisos de ejecución
 -- ----------------------------------------------------------------------------
 revoke all on function fichar(text, double precision, double precision, numeric, timestamptz, text) from public, anon;
@@ -690,3 +966,11 @@ grant execute on function fichaje_corregir(uuid, timestamptz, text, text) to aut
 revoke all on function avisar_responsables(uuid, uuid, text, text, text) from public, anon, authenticated;
 revoke all on function avisar_empleado(uuid, uuid, text, text, text) from public, anon, authenticated;
 revoke all on function hora_local_txt(timestamptz, uuid) from public, anon, authenticated;
+revoke all on function ausencia_solicitar(text, date, date, text, uuid, text) from public, anon;
+grant execute on function ausencia_solicitar(text, date, date, text, uuid, text) to authenticated;
+revoke all on function ausencia_decidir(uuid, text, text) from public, anon;
+grant execute on function ausencia_decidir(uuid, text, text) to authenticated;
+revoke all on function parte_guardar(date, text) from public, anon;
+grant execute on function parte_guardar(date, text) to authenticated;
+-- La purga la llama la tarea programada con service_role, no el cliente.
+revoke all on function purgar_ubicaciones(integer) from public, anon, authenticated;

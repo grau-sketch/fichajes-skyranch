@@ -49,6 +49,47 @@ export function estadoDesdeUltimo(ultimo: TipoFichaje | null): EstadoPresencia {
   return 'dentro'
 }
 
+export const TIPOS_AUSENCIA = [
+  'vacaciones',
+  'baja',
+  'permiso',
+  'asuntos_propios',
+  'falta',
+] as const
+export type TipoAusencia = (typeof TIPOS_AUSENCIA)[number]
+
+export const ETIQUETA_AUSENCIA: Record<TipoAusencia, string> = {
+  vacaciones: 'Vacaciones',
+  baja: 'Baja médica',
+  permiso: 'Permiso',
+  asuntos_propios: 'Asuntos propios',
+  falta: 'Falta',
+}
+
+/** Lo que puede pedir la propia persona; la falta la registra el responsable. */
+export const AUSENCIAS_SOLICITABLES: readonly TipoAusencia[] = [
+  'vacaciones',
+  'baja',
+  'permiso',
+  'asuntos_propios',
+]
+
+export const ESTADOS_AUSENCIA = ['pendiente', 'aprobada', 'rechazada', 'cancelada'] as const
+export type EstadoAusencia = (typeof ESTADOS_AUSENCIA)[number]
+
+export const ETIQUETA_ESTADO_AUSENCIA: Record<EstadoAusencia, string> = {
+  pendiente: 'Pendiente',
+  aprobada: 'Aprobada',
+  rechazada: 'Rechazada',
+  cancelada: 'Cancelada',
+}
+
+/** Días naturales de vacaciones al año que marca el Estatuto como mínimo. */
+export const DIAS_VACACIONES_MINIMO = 30
+
+/** A los 6 meses se borran las coordenadas exactas de los fichajes. */
+export const DIAS_RETENCION_UBICACION = 180
+
 export const ANOMALIAS = [
   'sin_salida',
   'pausa_abierta',
@@ -74,6 +115,8 @@ export const ETIQUETA_AVISO = {
   turno_sin_fichar: 'Turno sin fichar',
   fichaje_fuera_radio: 'Fichaje fuera del centro',
   fichaje_corregido: 'Fichaje corregido',
+  ausencia_pendiente: 'Solicitud de ausencia',
+  ausencia_decidida: 'Ausencia resuelta',
   resumen_encargado: 'Resumen',
 } as const
 
@@ -89,8 +132,8 @@ export const ETIQUETA_ORIGEN = {
 export const TOLERANCIA_ENTRADA_MIN = 10
 /** Minutos tras el fin del turno antes de avisar de jornada abierta. */
 export const TOLERANCIA_SALIDA_MIN = 20
-/** Radio por defecto de un centro nuevo, en metros. */
-export const RADIO_DEFECTO_M = 150
+/** Radio por defecto de un centro nuevo, en metros. 500 es lo medido en la finca. */
+export const RADIO_DEFECTO_M = 500
 /** Por encima de esta precisión el GPS no es fiable: se pide reintento. */
 export const PRECISION_ACEPTABLE_M = 200
 /** Zona horaria de referencia para agrupar por día natural. */

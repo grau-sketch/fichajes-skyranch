@@ -21,6 +21,9 @@ self.addEventListener('install', (evento) => {
 })
 
 self.addEventListener('activate', (evento) => {
+  // Solo se borran las cachés de versiones anteriores, nunca la actual: si se
+  // borrara todo en cada activación, la primera carga sin red se quedaría sin
+  // nada que servir.
   evento.waitUntil(
     caches
       .keys()
@@ -39,8 +42,22 @@ self.addEventListener('fetch', (evento) => {
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth')) return
 
   if (req.mode === 'navigate') {
+    /* Stale-while-revalidate: se responde con lo cacheado si lo hay (arranque
+       instantáneo, y funciona en las zonas de la finca sin cobertura) y se
+       refresca en segundo plano. Sin esto, un primer arranque sin red falla. */
     evento.respondWith(
-      fetch(req).catch(() => caches.match(req).then((r) => r || caches.match('/offline'))),
+      caches.match(req).then((cacheado) => {
+        const red = fetch(req)
+          .then((res) => {
+            if (res && res.ok) {
+              const copia = res.clone()
+              caches.open(CACHE).then((c) => c.put(req, copia))
+            }
+            return res
+          })
+          .catch(() => cacheado || caches.match('/offline'))
+        return cacheado || red
+      }),
     )
     return
   }

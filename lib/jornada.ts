@@ -152,19 +152,25 @@ export function minutosTurno(t: Pick<Turno, 'hora_inicio' | 'hora_fin' | 'pausa_
   return Math.max(0, bruto - (t.pausa_min ?? 0))
 }
 
-/** Turnos ya terminados sin ninguna jornada imputada a ese día. */
+/**
+ * Turnos ya terminados sin ninguna jornada imputada a ese día.
+ * Los días cubiertos por una ausencia aprobada no cuentan: un día de
+ * vacaciones no es un turno sin fichar.
+ */
 export function turnosSinFichar(
   turnos: Turno[],
   jornadas: Jornada[],
   ahora: Date = new Date(),
   tz: string = TZ,
+  diasAusentes: ReadonlySet<string> = new Set(),
 ): Turno[] {
   const conFichaje = new Set(jornadas.map((j) => j.fecha))
   return turnos.filter(
     (t) =>
       t.estado !== 'cancelado' &&
       finTurno(t.fecha, t.hora_inicio, t.hora_fin, tz) < ahora &&
-      !conFichaje.has(t.fecha),
+      !conFichaje.has(t.fecha) &&
+      !diasAusentes.has(t.fecha),
   )
 }
 

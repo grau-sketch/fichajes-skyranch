@@ -1,4 +1,4 @@
-import type { Rol, TipoFichaje } from './constants'
+import type { EstadoAusencia, Rol, TipoAusencia, TipoFichaje } from './constants'
 
 export type Centro = {
   id: string
@@ -18,6 +18,8 @@ export type Perfil = {
   rol: Rol
   centro_id: string | null
   horas_semana: number
+  /** Días naturales de vacaciones al año. */
+  dias_vacaciones: number
   activo: boolean
 }
 
@@ -68,12 +70,39 @@ export type PlantillaTurno = {
   activo: boolean
 }
 
+export type Ausencia = {
+  id: string
+  empleado_id: string
+  tipo: TipoAusencia
+  desde: string
+  hasta: string
+  motivo: string | null
+  estado: EstadoAusencia
+  /** Ruta en el bucket privado; se lee siempre por URL firmada. */
+  justificante: string | null
+  creado_por: string | null
+  creado_en: string
+  decidido_por: string | null
+  decidido_en: string | null
+  nota_decision: string | null
+}
+
+export type ParteTrabajo = {
+  id: string
+  empleado_id: string
+  fecha: string
+  texto: string
+  actualizado_en: string
+}
+
 export type TipoAviso =
   | 'sin_entrada'
   | 'jornada_abierta'
   | 'turno_sin_fichar'
   | 'fichaje_fuera_radio'
   | 'fichaje_corregido'
+  | 'ausencia_pendiente'
+  | 'ausencia_decidida'
   | 'resumen_encargado'
 
 export type Aviso = {

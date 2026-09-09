@@ -4,12 +4,13 @@ import Link from 'next/link'
 import { useState } from 'react'
 import Marca from '@/components/Marca'
 import AvisoBanner from '@/components/AvisoBanner'
+import ParteTrabajo from '@/components/ParteTrabajo'
 import ReiniciarDemo from '@/components/ReiniciarDemo'
 import { useDemo } from '@/components/DemoProvider'
 import Reloj from '@/components/Reloj'
 import { TZ, type TipoFichaje } from '@/lib/constants'
 import { HOY } from '@/lib/demo'
-import { ficharDemo, marcarAvisoDemo } from '@/lib/demoEstado'
+import { ficharDemo, guardarParteDemo, marcarAvisoDemo } from '@/lib/demoEstado'
 import { formatMinutos, sumarDias } from '@/lib/fechas'
 import { distanciaM, type Posicion } from '@/lib/geo'
 import { minutosTurno } from '@/lib/jornada'
@@ -162,6 +163,16 @@ export default function Vista() {
             </div>
           )}
         </div>
+
+        <ParteTrabajo
+          fecha={HOY}
+          texto={estado.partes.find((x) => x.empleado_id === yo.id && x.fecha === HOY)?.texto ?? ''}
+          demo={(form) =>
+            aplicar((e) =>
+              guardarParteDemo(e, e.yo, String(form.get('fecha')), String(form.get('texto') ?? '')),
+            )
+          }
+        />
 
         <p className="mini suave centrado">
           Tu ubicación se registra solo en el momento de fichar, para comprobar que estás en el

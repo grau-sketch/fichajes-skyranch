@@ -7,8 +7,8 @@
 -- Centro de trabajo: SKYRANCH
 -- Coordenadas: 40.317603, -4.474293
 -- Rozas de Puerto Real (Madrid). Al ser una finca y no un local de calle, el
--- radio va holgado (400 m) para que se pueda fichar desde cualquier punto del
--- recinto. Ajústalo desde la app cuando compruebes la cobertura real.
+-- radio va holgado (500 m, lo ya medido) para que se pueda fichar desde
+-- cualquier punto del recinto. Ajústalo desde la app si hace falta.
 -- ----------------------------------------------------------------------------
 insert into centros (nombre, direccion, lat, lon, radio_m, tz)
 values (
@@ -16,7 +16,7 @@ values (
   'Calle Logroño, Entrepinos, 28648 Rozas de Puerto Real (Madrid)',
   40.317603,
   -4.474293,
-  400,
+  500,
   'Europe/Madrid'
 )
 on conflict do nothing;
@@ -26,7 +26,7 @@ update centros
 set direccion = 'Calle Logroño, Entrepinos, 28648 Rozas de Puerto Real (Madrid)',
     lat = 40.317603,
     lon = -4.474293,
-    radio_m = 400,
+    radio_m = 500,
     tz = 'Europe/Madrid'
 where nombre = 'SKYRANCH';
 

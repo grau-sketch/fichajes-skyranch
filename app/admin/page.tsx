@@ -5,7 +5,8 @@ import { finTurno, hoyLocal, instanteLocal, sumarDias } from '@/lib/fechas'
 import { agruparJornadas } from '@/lib/jornada'
 import { requerirGestor } from '@/lib/sesion'
 import { createClient } from '@/lib/supabase/server'
-import type { Aviso, EstadoActual, Fichaje, Perfil, Turno } from '@/lib/types'
+import { diasAusentes } from '@/lib/ausencias'
+import type { Ausencia, Aviso, EstadoActual, Fichaje, Perfil, Turno } from '@/lib/types'
 
 export const metadata = { title: 'Equipo' }
 export const dynamic = 'force-dynamic'
@@ -17,7 +18,8 @@ export default async function Admin() {
   const ahora = new Date()
 
   // RLS ya limita el alcance: admin ve todo, encargado solo su centro.
-  const [resPerfiles, resEstado, resFichajes, resTurnos, resAvisos] = await Promise.all([
+  const [resPerfiles, resEstado, resFichajes, resTurnos, resAvisos, resAusencias] =
+    await Promise.all([
     supabase.from('perfiles').select('*').eq('activo', true).order('nombre'),
     supabase.from('estado_actual').select('*').order('nombre'),
     supabase
@@ -33,13 +35,20 @@ export default async function Admin() {
       .is('leido_en', null)
       .order('enviado_en', { ascending: false })
       .limit(15),
-  ])
+    supabase
+      .from('ausencias')
+      .select('*')
+      .in('estado', ['pendiente', 'aprobada'])
+      .gte('hasta', sumarDias(hoy, -1)),
+    ])
 
   const perfiles = (resPerfiles.data ?? []) as Perfil[]
   const estados = (resEstado.data ?? []) as EstadoActual[]
   const fichajes = (resFichajes.data ?? []) as Fichaje[]
   const turnos = (resTurnos.data ?? []) as Turno[]
   const avisos = (resAvisos.data ?? []) as Aviso[]
+  const ausencias = (resAusencias.data ?? []) as Ausencia[]
+  const ausenciasPendientes = ausencias.filter((a) => a.estado === 'pendiente').length
 
   const porEmpleado = new Map<string, Fichaje[]>()
   for (const f of fichajes) {
@@ -56,9 +65,17 @@ export default async function Admin() {
       .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio))
     const deHoy = jornadas.filter((j) => j.fecha === hoy)
 
+    const deAusencia =
+      diasAusentes(
+        ausencias.filter((a) => a.empleado_id === p.id),
+        hoy,
+        hoy,
+      ).size > 0
+
     const primerTurno = turnosHoy[0]
     const sinEntrada =
       primerTurno &&
+      !deAusencia &&
       deHoy.length === 0 &&
       ahora.getTime() - instanteLocal(hoy, primerTurno.hora_inicio, TZ).getTime() >
         TOLERANCIA_ENTRADA_MIN * 60000
@@ -103,6 +120,7 @@ export default async function Admin() {
           hoy={hoy}
           tz={TZ}
           esAdmin={gestor.rol === 'admin'}
+          ausenciasPendientes={ausenciasPendientes}
         />
       </main>
     </>

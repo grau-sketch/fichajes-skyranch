@@ -7,6 +7,7 @@ import { useDemo } from '@/components/DemoProvider'
 import Formulario from '@/components/Formulario'
 import { ETIQUETA_TIPO, TIPOS_FICHAJE, TZ, type TipoFichaje } from '@/lib/constants'
 import { HOY } from '@/lib/demo'
+import { diasAusentes } from '@/lib/ausencias'
 import { anularDemo, corregirDemo, fichajeManualDemo } from '@/lib/demoEstado'
 import { fechaLocal, finMes, formatHoras, inicioMes } from '@/lib/fechas'
 import { agruparJornadas, minutosTurno, turnosSinFichar } from '@/lib/jornada'
@@ -43,11 +44,16 @@ export default function Vista() {
         return dia >= desde && dia <= hasta
       })
 
+      const susAusencias = estado.ausencias.filter((a) => a.empleado_id === p.id)
+      const ausentes = diasAusentes(susAusencias, desde, hasta)
+
       return {
         perfil: p,
         jornadas,
         fichajes: enRango,
-        sinFichar: turnosSinFichar(susTurnos, jornadas, new Date(), TZ),
+        ausencias: susAusencias,
+        diasAusencia: ausentes.size,
+        sinFichar: turnosSinFichar(susTurnos, jornadas, new Date(), TZ, ausentes),
         corregidos: enRango.filter((f) => f.origen === 'manual' || f.anulado_en !== null).length,
         trabajado: jornadas.reduce((s, j) => s + j.minutos_trabajados, 0),
         planificado: susTurnos.reduce((s, t) => s + minutosTurno(t), 0),

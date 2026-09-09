@@ -4,8 +4,16 @@
  * memoria, para poder tocar la app sin Supabase. Las reglas son las mismas: si
  * aquí no te deja hacer algo, en producción tampoco.
  */
-import { SIGUIENTES, TZ, type Rol, type TipoFichaje } from './constants'
 import {
+  AUSENCIAS_SOLICITABLES,
+  SIGUIENTES,
+  TZ,
+  type Rol,
+  type TipoAusencia,
+  type TipoFichaje,
+} from './constants'
+import {
+  AUSENCIAS,
   AVISOS_ADMIN,
   AVISOS_EMPLEADO,
   CENTROS,
@@ -18,7 +26,16 @@ import { fechaLocal, horaAMinutos } from './fechas'
 import { accesoDeNombre, nombreValido, usuarioDeNombre } from './usuario'
 import { distanciaM } from './geo'
 import { minutosTurno } from './jornada'
-import type { Aviso, Centro, Fichaje, Perfil, PlantillaTurno, Turno } from './types'
+import type {
+  Ausencia,
+  Aviso,
+  Centro,
+  Fichaje,
+  ParteTrabajo,
+  Perfil,
+  PlantillaTurno,
+  Turno,
+} from './types'
 
 export type EstadoDemo = {
   centros: Centro[]
@@ -26,6 +43,8 @@ export type EstadoDemo = {
   fichajes: Fichaje[]
   turnos: Turno[]
   plantillas: PlantillaTurno[]
+  ausencias: Ausencia[]
+  partes: ParteTrabajo[]
   avisos: Aviso[]
   /** Quién es "yo" en la vista de trabajadora. */
   yo: string
@@ -42,6 +61,8 @@ export function estadoInicial(): EstadoDemo {
     fichajes: FICHAJES.map((f) => ({ ...f })),
     turnos: TURNOS.map((t) => ({ ...t })),
     plantillas: PLANTILLAS.map((p) => ({ ...p })),
+    ausencias: AUSENCIAS.map((a) => ({ ...a })),
+    partes: [],
     avisos: [...AVISOS_ADMIN, ...AVISOS_EMPLEADO].map((a) => ({ ...a })),
     yo: 'gilenis',
     admin: 'carlos',
@@ -421,6 +442,7 @@ export function crearEmpleadoDemo(
     rol: datos.rol,
     centro_id: datos.centro_id || null,
     horas_semana: datos.horas_semana,
+    dias_vacaciones: 30,
     activo: true,
   }
   return {
@@ -460,6 +482,171 @@ export function guardarEmpleadoDemo(
       ),
     },
     mensaje: 'Empleado actualizado',
+  }
+}
+
+// --- Ausencias --------------------------------------------------------------
+
+export function solicitarAusenciaDemo(
+  e: EstadoDemo,
+  datos: {
+    empleado_id: string
+    tipo: TipoAusencia
+    desde: string
+    hasta: string
+    motivo: string
+    justificante: string | null
+    comoGestor: boolean
+  },
+): Resultado {
+  if (!datos.desde || !datos.hasta) return { ok: false, error: 'Indica las fechas' }
+  if (datos.hasta < datos.desde) {
+    return { ok: false, error: 'La fecha de fin es anterior a la de inicio' }
+  }
+  if (datos.tipo === 'falta' && !datos.comoGestor) {
+    return { ok: false, error: 'Solo un responsable puede registrar una falta' }
+  }
+  if (
+    e.ausencias.some(
+      (a) =>
+        a.empleado_id === datos.empleado_id &&
+        (a.estado === 'pendiente' || a.estado === 'aprobada') &&
+        a.desde <= datos.hasta &&
+        a.hasta >= datos.desde,
+    )
+  ) {
+    return { ok: false, error: 'Ya hay una ausencia en esas fechas' }
+  }
+
+  const ahora = new Date().toISOString()
+  const aprobada = datos.comoGestor
+  const nueva: Ausencia = {
+    id: id('ausencia'),
+    empleado_id: datos.empleado_id,
+    tipo: datos.tipo,
+    desde: datos.desde,
+    hasta: datos.hasta,
+    motivo: datos.motivo.trim() || null,
+    estado: aprobada ? 'aprobada' : 'pendiente',
+    justificante: datos.justificante,
+    creado_por: aprobada ? e.admin : datos.empleado_id,
+    creado_en: ahora,
+    decidido_por: aprobada ? e.admin : null,
+    decidido_en: aprobada ? ahora : null,
+    nota_decision: null,
+  }
+
+  const avisos = [...e.avisos]
+  if (!aprobada) {
+    for (const jefe of responsablesDe(e, datos.empleado_id)) {
+      avisos.unshift(
+        avisoPara(
+          jefe.id,
+          datos.empleado_id,
+          'ausencia_pendiente',
+          'Solicitud de ausencia',
+          `${e.perfiles.find((p) => p.id === datos.empleado_id)?.nombre} pide ${datos.tipo.replace('_', ' ')} del ${datos.desde} al ${datos.hasta}.`,
+        ),
+      )
+    }
+  }
+
+  return {
+    ok: true,
+    estado: { ...e, ausencias: [...e.ausencias, nueva], avisos },
+    mensaje: AUSENCIAS_SOLICITABLES.includes(datos.tipo) && !aprobada
+      ? 'Solicitud enviada. Tu responsable la tiene que aprobar.'
+      : 'Ausencia registrada',
+  }
+}
+
+export function decidirAusenciaDemo(
+  e: EstadoDemo,
+  ausenciaId: string,
+  estado: Ausencia['estado'],
+  nota: string,
+  porId: string,
+): Resultado {
+  const a = e.ausencias.find((x) => x.id === ausenciaId)
+  if (!a) return { ok: false, error: 'La ausencia no existe' }
+  if (estado === 'rechazada' && nota.trim().length < 3) {
+    return { ok: false, error: 'Rechazar una solicitud necesita motivo' }
+  }
+  if (estado === 'cancelada' && a.estado !== 'pendiente') {
+    return { ok: false, error: 'Solo puedes cancelar una solicitud que siga pendiente' }
+  }
+
+  const ahora = new Date().toISOString()
+  const etiquetas: Record<string, string> = {
+    aprobada: 'Ausencia aprobada',
+    rechazada: 'Solicitud rechazada',
+    cancelada: 'Solicitud cancelada',
+  }
+
+  return {
+    ok: true,
+    estado: {
+      ...e,
+      ausencias: e.ausencias.map((x) =>
+        x.id === ausenciaId
+          ? {
+              ...x,
+              estado,
+              decidido_por: porId,
+              decidido_en: ahora,
+              nota_decision: nota.trim() || null,
+            }
+          : x,
+      ),
+      avisos:
+        a.empleado_id === porId
+          ? e.avisos
+          : [
+              avisoPara(
+                a.empleado_id,
+                a.empleado_id,
+                'ausencia_decidida',
+                etiquetas[estado],
+                `${a.tipo.replace('_', ' ')} del ${a.desde} al ${a.hasta}: ${estado}.`,
+              ),
+              ...e.avisos,
+            ],
+    },
+    mensaje: etiquetas[estado],
+  }
+}
+
+// --- Parte de trabajo -------------------------------------------------------
+
+export function guardarParteDemo(
+  e: EstadoDemo,
+  empleadoId: string,
+  fecha: string,
+  texto: string,
+): Resultado {
+  const limpio = texto.trim()
+  const resto = e.partes.filter((p) => !(p.empleado_id === empleadoId && p.fecha === fecha))
+
+  if (!limpio) {
+    return { ok: true, estado: { ...e, partes: resto }, mensaje: 'Parte borrado' }
+  }
+
+  return {
+    ok: true,
+    estado: {
+      ...e,
+      partes: [
+        ...resto,
+        {
+          id: id('parte'),
+          empleado_id: empleadoId,
+          fecha,
+          texto: limpio,
+          actualizado_en: new Date().toISOString(),
+        },
+      ],
+    },
+    mensaje: 'Parte guardado',
   }
 }
 

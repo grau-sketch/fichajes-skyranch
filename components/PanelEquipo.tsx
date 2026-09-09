@@ -27,6 +27,7 @@ export default function PanelEquipo({
   hoy,
   tz,
   esAdmin,
+  ausenciasPendientes = 0,
   base = '',
   soloLectura = false,
   alMarcarAviso,
@@ -36,6 +37,8 @@ export default function PanelEquipo({
   hoy: string
   tz: string
   esAdmin: boolean
+  /** Solicitudes de ausencia esperando decisión. */
+  ausenciasPendientes?: number
   /** Prefijo de las rutas: '' en la app real, '/demo' en la demo. */
   base?: string
   soloLectura?: boolean
@@ -151,6 +154,14 @@ export default function PanelEquipo({
       </div>
 
       <div className="fila" style={{ gap: 10, flexWrap: 'wrap' }}>
+        <Link className="btn crece" href={`${base}/admin/ausencias`}>
+          Ausencias
+          {ausenciasPendientes > 0 && (
+            <span className="pill aviso" style={{ marginLeft: 2 }}>
+              {ausenciasPendientes}
+            </span>
+          )}
+        </Link>
         <Link className="btn crece" href={`${base}/admin/informes`}>
           Informes
         </Link>

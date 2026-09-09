@@ -21,6 +21,13 @@ Google Play.
   horas de esta semana y de la próxima, y puede desplegarlo a vista mensual. Solo
   turnos: **su histórico de fichajes no se muestra en la app**, para no convertir
   cada minuto en una discusión.
+- **Vacaciones y ausencias**: la persona las pide con su motivo y, si quiere, un
+  justificante; el responsable aprueba o rechaza. Contador de días del año,
+  disfrutados y pendientes. **Una ausencia aprobada reduce las horas objetivo
+  del periodo**, así que una semana de vacaciones ya no aparece como
+  incumplimiento.
+- **Parte del día**: un campo para escribir qué se ha hecho. En una finca eso
+  vale más que las horas.
 - **Planificación**: patrón semanal por persona y calendario generado a partir
   de él. En los informes el administrador ve lo trabajado frente a lo
   planificado.
@@ -345,6 +352,21 @@ db/seed.sql             ← centro SKYRANCH y alta del primer admin
 public/sw.js            ← service worker (caché + push)
 scripts/                ← pruebas, claves VAPID, iconos
 ```
+
+## Protección de datos
+
+Tres decisiones que conviene no deshacer:
+
+- **Los justificantes van a un bucket privado.** Un parte médico es dato de
+  categoría especial (art. 9 RGPD). Se sube a `justificantes/<id>/…` y solo se
+  lee por URL firmada de 2 minutos. Nunca un enlace permanente.
+- **Las coordenadas exactas se borran a los 6 meses.** El fichaje y la
+  distancia al centro se conservan los 4 años que exige la ley, pero la
+  posición precisa no hace falta tanto tiempo. Lo hace `purgar_ubicaciones()`
+  desde la tarea programada.
+- **El trabajador no ve su histórico**, así que la entrega del registro cuando
+  lo pida se hace desde *Informes*. Déjalo escrito en la información que le
+  deis a la plantilla.
 
 ## Pendiente
 

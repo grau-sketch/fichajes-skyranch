@@ -558,6 +558,9 @@ tfoot th { border-bottom: none; font-weight: 600; color: var(--texto); }
 }
 .turno-chip .horas { font-weight: 600; font-size: 16px; letter-spacing: -0.01em; }
 .turno-chip .detalle { font-size: 13px; color: var(--texto-2); }
+.turno-chip.ausencia { background: var(--aviso-tinte); }
+.turno-chip.ausencia .horas { color: var(--aviso); }
+.turno-chip.ausencia .detalle { color: var(--aviso); opacity: 0.85; }
 
 .cal-mes { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
 .cal-mes .cabeza {
@@ -590,6 +593,8 @@ tfoot th { border-bottom: none; font-weight: 600; color: var(--texto); }
 .cal-celda .rango { font-size: 9px; line-height: 1.2; color: var(--texto-2); text-align: center; }
 .cal-celda.con-turno { background: var(--marca-tinte); }
 .cal-celda.con-turno .num, .cal-celda.con-turno .rango { color: var(--marca-fuerte); }
+.cal-celda.ausencia { background: var(--aviso-tinte); }
+.cal-celda.ausencia .num, .cal-celda.ausencia .rango { color: var(--aviso); }
 .cal-celda.fuera { opacity: 0.28; }
 .cal-celda.hoy .num {
   background: var(--marca);

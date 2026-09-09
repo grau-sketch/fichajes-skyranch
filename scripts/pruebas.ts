@@ -4,7 +4,8 @@
 import { finTurno, formatHoras, formatMinutos, inicioSemana, instanteLocal } from '../lib/fechas'
 import { agruparJornadas, minutosTurno, turnosSinFichar } from '../lib/jornada'
 import { objetivoPeriodoMin, proyectar } from '../lib/proyeccion'
-import type { Fichaje, Turno } from '../lib/types'
+import { diasAusenciaEnPeriodo, resumenVacaciones } from '../lib/ausencias'
+import type { Ausencia, Fichaje, Turno } from '../lib/types'
 
 let fallos = 0
 let total = 0
@@ -234,6 +235,102 @@ console.log('\nProyección de turnos')
   })
   comprobar('detecta que no llega', corto.no_llega, true)
   comprobar('faltan 8 h', corto.desviacion_min, -480)
+}
+
+function a(
+  tipo: Ausencia['tipo'],
+  desde: string,
+  hasta: string,
+  estado: Ausencia['estado'] = 'aprobada',
+): Ausencia {
+  return {
+    id: `ausencia-${tipo}-${desde}`,
+    empleado_id: 'e1',
+    tipo,
+    desde,
+    hasta,
+    motivo: null,
+    estado,
+    justificante: null,
+    creado_por: 'e1',
+    creado_en: `${desde}T08:00:00Z`,
+    decidido_por: estado === 'pendiente' ? null : 'jefe',
+    decidido_en: estado === 'pendiente' ? null : `${desde}T09:00:00Z`,
+    nota_decision: null,
+  }
+}
+
+console.log('\nAusencias: días y vacaciones')
+comprobar('días de una ausencia de una semana', diasAusenciaEnPeriodo([a('vacaciones', '2026-09-07', '2026-09-13')], '2026-09-07', '2026-09-13'), 7)
+comprobar('solo la parte que cae en el periodo', diasAusenciaEnPeriodo([a('vacaciones', '2026-09-05', '2026-09-09')], '2026-09-07', '2026-09-13'), 3)
+comprobar('una solicitud pendiente no descuenta', diasAusenciaEnPeriodo([a('vacaciones', '2026-09-07', '2026-09-13', 'pendiente')], '2026-09-07', '2026-09-13'), 0)
+comprobar('una rechazada tampoco', diasAusenciaEnPeriodo([a('vacaciones', '2026-09-07', '2026-09-13', 'rechazada')], '2026-09-07', '2026-09-13'), 0)
+comprobar('dos ausencias solapadas no cuentan doble', diasAusenciaEnPeriodo([a('vacaciones', '2026-09-07', '2026-09-10'), a('baja', '2026-09-09', '2026-09-13')], '2026-09-07', '2026-09-13'), 7)
+{
+  const r = resumenVacaciones(
+    [a('vacaciones', '2026-08-01', '2026-08-15'), a('vacaciones', '2026-12-24', '2026-12-31', 'pendiente')],
+    30,
+    2026,
+  )
+  comprobar('vacaciones usadas', r.usados, 15)
+  comprobar('vacaciones pendientes de aprobar', r.pendientes, 8)
+  comprobar('vacaciones restantes', r.restantes, 7)
+}
+
+console.log('\nUna semana de vacaciones no es incumplimiento')
+{
+  const desde = '2026-09-07'
+  const hasta = '2026-09-13'
+  const ahora = new Date('2026-09-14T06:00:00Z')  // la semana ya pasó
+  const turnos = ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11'].map(
+    (fecha) => t(fecha, '09:00', '17:00'),
+  )
+  const vacaciones = [a('vacaciones', desde, hasta)]
+
+  // Sin ausencias: no fichó nada esa semana, así que faltan las 40 h.
+  const sin = proyectar({ jornadas: [], turnos, horasSemana: 40, desde, hasta, ahora, tz: TZ })
+  comprobar('sin ausencias, objetivo de 40 h', sin.objetivo_min, 2400)
+  comprobar('sin ausencias, 5 turnos sin fichar', sin.turnos_sin_fichar, 5)
+  comprobar('sin ausencias, no llega', sin.no_llega, true)
+
+  // Con las vacaciones aprobadas: ni objetivo, ni turnos sin fichar.
+  const con = proyectar({
+    jornadas: [], turnos, horasSemana: 40, desde, hasta, ausencias: vacaciones, ahora, tz: TZ,
+  })
+  comprobar('con vacaciones, objetivo a cero', con.objetivo_min, 0)
+  comprobar('con vacaciones, ningún turno sin fichar', con.turnos_sin_fichar, 0)
+  comprobar('con vacaciones, cuadra', con.desviacion_min, 0)
+  comprobar('con vacaciones, no avisa de incumplimiento', con.no_llega, false)
+  comprobar('cuenta los 7 días de ausencia', con.dias_ausencia, 7)
+}
+
+console.log('\nMedia semana de baja')
+{
+  const desde = '2026-09-07'
+  const hasta = '2026-09-13'
+  const ahora = new Date('2026-09-14T06:00:00Z')
+  // Trabajó lunes y martes; de baja de miércoles a domingo (5 días).
+  const fichajes = [
+    f('entrada', '2026-09-07T07:00:00Z'), f('salida', '2026-09-07T15:00:00Z'),
+    f('entrada', '2026-09-08T07:00:00Z'), f('salida', '2026-09-08T15:00:00Z'),
+  ]
+  const jornadas = agruparJornadas(fichajes, ahora, TZ)
+  const p = proyectar({
+    jornadas,
+    turnos: ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11'].map((x) =>
+      t(x, '09:00', '17:00'),
+    ),
+    horasSemana: 40,
+    desde,
+    hasta,
+    ausencias: [a('baja', '2026-09-09', '2026-09-13')],
+    ahora,
+    tz: TZ,
+  })
+  comprobar('objetivo prorrateado a 2 días', p.objetivo_min, Math.round((40 * 60 * 2) / 7))
+  comprobar('trabajó 16 h', p.trabajado_min, 960)
+  comprobar('los turnos de la baja no salen sin fichar', p.turnos_sin_fichar, 0)
+  comprobar('queda por encima del objetivo', p.desviacion_min > 0, true)
 }
 
 console.log('\nTurnos pasados sin fichar')

@@ -9,9 +9,11 @@ import {
   inicioMes,
   sumarDias,
 } from '@/lib/fechas'
+import { diasAusentes } from '@/lib/ausencias'
+import { ETIQUETA_AUSENCIA } from '@/lib/constants'
 import { agruparJornadas, minutosTurno, turnosSinFichar } from '@/lib/jornada'
 import { createClient } from '@/lib/supabase/server'
-import type { Centro, Fichaje, Perfil, Turno } from '@/lib/types'
+import type { Ausencia, Centro, Fichaje, Perfil, Turno } from '@/lib/types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -76,16 +78,25 @@ export async function GET(peticion: NextRequest) {
     .lte('fecha', hasta)
     .neq('estado', 'cancelado')
 
+  let consultaAusencias = supabase
+    .from('ausencias')
+    .select('*')
+    .eq('estado', 'aprobada')
+    .lte('desde', hasta)
+    .gte('hasta', desde)
+
   if (empleado && empleado !== 'todos') {
     consultaFichajes = consultaFichajes.eq('empleado_id', empleado)
     consultaTurnos = consultaTurnos.eq('empleado_id', empleado)
+    consultaAusencias = consultaAusencias.eq('empleado_id', empleado)
   }
 
-  const [resFichajes, resTurnos, resPerfiles, resCentros] = await Promise.all([
+  const [resFichajes, resTurnos, resPerfiles, resCentros, resAusencias] = await Promise.all([
     consultaFichajes,
     consultaTurnos,
     supabase.from('perfiles').select('*'),
     supabase.from('centros').select('*'),
+    consultaAusencias,
   ])
 
   if (resFichajes.error) return new NextResponse('Error al leer los fichajes', { status: 500 })
@@ -95,6 +106,7 @@ export async function GET(peticion: NextRequest) {
   const nombrePor = Object.fromEntries(perfilesLista.map((p) => [p.id, p.nombre]))
   const centros = new Map(((resCentros.data ?? []) as Centro[]).map((c) => [c.id, c]))
   const turnos = (resTurnos.data ?? []) as Turno[]
+  const ausencias = (resAusencias.data ?? []) as Ausencia[]
 
   const porEmpleado = new Map<string, Fichaje[]>()
   for (const f of (resFichajes.data ?? []) as Fichaje[]) {
@@ -231,8 +243,29 @@ export async function GET(peticion: NextRequest) {
       })
     }
 
+    const susAusencias = ausencias.filter((a) => a.empleado_id === id)
+    const ausentes = diasAusentes(susAusencias, desde, hasta)
+
+    // Los días de ausencia aprobada salen como tales, no como incumplimiento.
+    for (const a of susAusencias) {
+      const ini = a.desde > desde ? a.desde : desde
+      const fin = a.hasta < hasta ? a.hasta : hasta
+      if (fin < ini) continue
+      filas.push({
+        fecha: ini,
+        linea: [
+          celda(nombre), celda(email), celda(centro),
+          celda(ini === fin ? ini : `${ini} a ${fin}`),
+          celda(ETIQUETA_AUSENCIA[a.tipo].toUpperCase()),
+          '', '', '', celda('0:00'), celda(0),
+          '', '', '', celda('No'), celda(0),
+          celda(a.motivo ?? ETIQUETA_AUSENCIA[a.tipo]),
+        ].join(SEP),
+      })
+    }
+
     // Turnos planificados que pasaron sin ningún fichaje: quedan explícitos.
-    for (const t of turnosSinFichar(susTurnos, jornadas, new Date(), TZ)) {
+    for (const t of turnosSinFichar(susTurnos, jornadas, new Date(), TZ, ausentes)) {
       filas.push({
         fecha: t.fecha,
         linea: [

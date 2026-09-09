@@ -62,7 +62,19 @@ si falta un fichaje. Se instala desde un enlace, sin tiendas de apps.
     su pantalla es `/turnos` (calendario de horario). El acceso legal al
     registro se cubre entregándolo desde `/admin/informes`. No vuelvas a
     exponerlo en la app sin hablarlo.
-13. **La app arranca sin Supabase.** `lib/supabase/configurado.ts` decide: si
+13. **Una ausencia aprobada reduce el objetivo del periodo.** Sin eso, una
+    semana de vacaciones se lee como incumplimiento de jornada. Va en
+    `objetivoPeriodoMin(…, diasAusencia)` y en `turnosSinFichar(…, diasAusentes)`,
+    y lo aplican también el panel del equipo y el cron de avisos. Solo cuenta
+    `estado = 'aprobada'`. Está cubierto por `bun run pruebas`.
+14. **El bucket `justificantes` es privado.** Un parte médico es dato de
+    categoría especial (art. 9 RGPD): se sube a `justificantes/<uid>/…` y se lee
+    siempre por URL firmada de 2 minutos (`urlJustificante`). Nunca lo pases a
+    público ni generes enlaces permanentes.
+15. **Las coordenadas se purgan a los 6 meses** (`purgar_ubicaciones`, llamada
+    desde el cron). El fichaje y la distancia se conservan los 4 años; la
+    posición exacta no hace falta tanto tiempo.
+16. **La app arranca sin Supabase.** `lib/supabase/configurado.ts` decide: si
     faltan las variables, el middleware manda todo a `/demo`. Cualquier código
     nuevo que consulte Supabase en el arranque debe respetar esa comprobación.
 
@@ -159,12 +171,17 @@ coordenadas por GPS, avisos push (al trabajador y al responsable) con cron, PWA
 instalable con service worker.
 
 **Pendiente (orden sugerido):**
-1. Vacaciones y ausencias, para que el objetivo del periodo las descuente.
-2. Resumen semanal por correo al responsable (Resend) con las incidencias.
-3. Fichaje por QR en el local como refuerzo de la ubicación.
+1. PIN de desbloqueo rápido **encima** de la sesión (no como autenticación),
+   para no escribir nombre y contraseña cada mañana en el campo.
+2. Confirmación de horario por parte del trabajador y solicitud de cambio.
+3. Resumen semanal por correo al responsable (Resend) con las incidencias.
 4. Exportación sellada/firmada del informe mensual.
 5. Recuperación de contraseña por el propio trabajador.
 6. Mapa en el panel con el punto del fichaje que cayó fuera del radio.
+
+**Descartado a propósito:** el fichaje por QR. La versión anterior lo tenía con
+un token estático en el cliente, falsificable en segundos; y con la geocerca ya
+validada en servidor no aporta nada. Ver la auditoría de la app anterior.
 
 ## No hagas
 - No añadas policies de escritura sobre `fichajes`.

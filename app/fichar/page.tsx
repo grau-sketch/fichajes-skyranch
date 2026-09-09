@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import AvisoBanner from '@/components/AvisoBanner'
 import AvisosPush from '@/components/AvisosPush'
+import ParteTrabajo from '@/components/ParteTrabajo'
 import Cabecera from '@/components/Cabecera'
 import Reloj from '@/components/Reloj'
 import { TOLERANCIA_ENTRADA_MIN, TZ } from '@/lib/constants'
@@ -8,7 +9,7 @@ import { formatMinutos, hoyLocal, instanteLocal, sumarDias } from '@/lib/fechas'
 import { minutosTurno } from '@/lib/jornada'
 import { requerirPerfil } from '@/lib/sesion'
 import { createClient } from '@/lib/supabase/server'
-import type { Aviso, Centro, Fichaje, Turno } from '@/lib/types'
+import type { Aviso, Centro, Fichaje, ParteTrabajo as Parte, Turno } from '@/lib/types'
 
 export const metadata = { title: 'Fichar' }
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,7 @@ export default async function Fichar() {
   // 48 h de margen para reconstruir jornadas que cruzan medianoche.
   const desde = new Date(Date.now() - 48 * 3600 * 1000).toISOString()
 
-  const [resFichajes, resCentro, resTurnos, resAvisos] = await Promise.all([
+  const [resFichajes, resCentro, resTurnos, resParte, resAvisos] = await Promise.all([
     supabase
       .from('fichajes')
       .select('*')
@@ -40,6 +41,12 @@ export default async function Fichar() {
       .order('fecha')
       .order('hora_inicio'),
     supabase
+      .from('partes_trabajo')
+      .select('*')
+      .eq('empleado_id', perfil.id)
+      .eq('fecha', hoy)
+      .maybeSingle(),
+    supabase
       .from('avisos')
       .select('*')
       // Los dirigidos a mí, o los míos sin destinatario explícito.
@@ -53,6 +60,7 @@ export default async function Fichar() {
   const centro = (resCentro.data ?? null) as Centro | null
   const turnos = (resTurnos.data ?? []) as Turno[]
   const avisos = (resAvisos.data ?? []) as Aviso[]
+  const parte = (resParte.data ?? null) as Parte | null
   const tz = centro?.tz ?? TZ
 
   const turnosHoy = turnos.filter((t) => t.fecha === hoy)
@@ -121,6 +129,8 @@ export default async function Fichar() {
             </div>
           )}
         </div>
+
+        <ParteTrabajo fecha={hoy} texto={parte?.texto ?? ''} />
 
         <AvisosPush vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
 

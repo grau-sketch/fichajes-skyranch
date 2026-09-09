@@ -10,6 +10,7 @@ import {
   estadoDesdeUltimo,
   type TipoFichaje,
 } from '@/lib/constants'
+import { diasAusentes } from '@/lib/ausencias'
 import { HOY } from '@/lib/demo'
 import { marcarAvisoDemo } from '@/lib/demoEstado'
 import { finTurno, hoyLocal, instanteLocal } from '@/lib/fechas'
@@ -37,9 +38,17 @@ export default function Vista() {
       const vigentes = suyos.filter((f) => f.anulado_en === null)
       const ultimo = [...vigentes].sort((a, b) => b.ts.localeCompare(a.ts))[0]
 
+      const deAusencia =
+        diasAusentes(
+          estado.ausencias.filter((a) => a.empleado_id === p.id),
+          hoy,
+          hoy,
+        ).size > 0
+
       const primerTurno = turnosHoy[0]
       const sinEntrada =
         Boolean(primerTurno) &&
+        !deAusencia &&
         deHoy.length === 0 &&
         ahora.getTime() - instanteLocal(hoy, primerTurno!.hora_inicio, TZ).getTime() >
           TOLERANCIA_ENTRADA_MIN * 60000
@@ -94,6 +103,7 @@ export default function Vista() {
           tz={TZ}
           esAdmin
           base="/demo"
+          ausenciasPendientes={estado.ausencias.filter((a) => a.estado === 'pendiente').length}
           alMarcarAviso={(id) => aplicar((e) => marcarAvisoDemo(e, id))}
         />
       </main>

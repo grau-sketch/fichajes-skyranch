@@ -8,7 +8,8 @@ import { fechaLocal, finMes, formatHoras, hoyLocal, inicioMes, sumarDias } from 
 import { agruparJornadas, minutosTurno, turnosSinFichar } from '@/lib/jornada'
 import { requerirGestor } from '@/lib/sesion'
 import { createClient } from '@/lib/supabase/server'
-import type { Fichaje, Perfil, Turno } from '@/lib/types'
+import { diasAusentes } from '@/lib/ausencias'
+import type { Ausencia, Fichaje, Perfil, Turno } from '@/lib/types'
 
 export const metadata = { title: 'Informes' }
 export const dynamic = 'force-dynamic'
@@ -43,15 +44,27 @@ export default async function Informes({
     .lte('ts', `${sumarDias(hasta, 2)}T00:00:00`)
     .order('ts', { ascending: true })
   let consultaTurnos = supabase.from('turnos').select('*').gte('fecha', desde).lte('fecha', hasta)
+  let consultaAusencias = supabase
+    .from('ausencias')
+    .select('*')
+    .eq('estado', 'aprobada')
+    .lte('desde', hasta)
+    .gte('hasta', desde)
 
   if (empleadoFiltro) {
     consultaFichajes = consultaFichajes.eq('empleado_id', empleadoFiltro)
     consultaTurnos = consultaTurnos.eq('empleado_id', empleadoFiltro)
+    consultaAusencias = consultaAusencias.eq('empleado_id', empleadoFiltro)
   }
 
-  const [resFichajes, resTurnos] = await Promise.all([consultaFichajes, consultaTurnos])
+  const [resFichajes, resTurnos, resAusencias] = await Promise.all([
+    consultaFichajes,
+    consultaTurnos,
+    consultaAusencias,
+  ])
   const fichajes = (resFichajes.data ?? []) as Fichaje[]
   const turnos = (resTurnos.data ?? []) as Turno[]
+  const ausencias = (resAusencias.data ?? []) as Ausencia[]
 
   const porEmpleado = new Map<string, Fichaje[]>()
   for (const f of fichajes) {
@@ -73,11 +86,16 @@ export default async function Informes({
         const dia = fechaLocal(f.ts, TZ)
         return dia >= desde && dia <= hasta
       })
+      const susAusencias = ausencias.filter((a) => a.empleado_id === p.id)
+      const ausentes = diasAusentes(susAusencias, desde, hasta)
+
       return {
         perfil: p,
         jornadas: [...jornadas].sort((a, b) => a.fecha.localeCompare(b.fecha)),
         fichajes: susFichajes,
-        sinFichar: turnosSinFichar(susTurnos, jornadas, new Date(), TZ),
+        ausencias: susAusencias,
+        diasAusencia: ausentes.size,
+        sinFichar: turnosSinFichar(susTurnos, jornadas, new Date(), TZ, ausentes),
         corregidos: susFichajes.filter((f) => f.origen === 'manual' || f.anulado_en !== null).length,
         trabajado: jornadas.reduce((s, j) => s + j.minutos_trabajados, 0),
         planificado: susTurnos.reduce((s, t) => s + minutosTurno(t), 0),
