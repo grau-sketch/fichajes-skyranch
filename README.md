@@ -1,7 +1,8 @@
-# Fichajes
+# Skyranch · Fichajes
 
-App de **registro de jornada** para móvil. Se instala desde un enlace o un QR (PWA),
-sin App Store ni Google Play.
+App de **registro de jornada** para móvil de la finca **Skyranch** (Rozas de
+Puerto Real, Madrid). Se instala desde un enlace o un QR (PWA), sin App Store ni
+Google Play.
 
 - **Fichar** entrada, pausas y salida con un botón grande. **La ubicación es
   obligatoria**: sin ella no se ficha. Si la posición cae fuera del recinto sale
@@ -25,6 +26,17 @@ sin App Store ni Google Play.
   planificado.
 - **Funciona sin cobertura**: si no hay red, el fichaje se guarda en el móvil con
   la hora real y se envía solo al recuperar señal.
+
+## Diseño
+
+Fundamento Apple: la tipografía del sistema (SF en iOS, la del dispositivo en el
+resto), una escala de tamaños fija, neutros cálidos con **un único acento vivo**
+—el marrón del sello—, filetes de un píxel y materiales translúcidos en las
+barras. Todo vive en tokens al principio de `app/globals.css`: para cambiar de
+marca solo se toca ese bloque.
+
+El sello va en `public/marca/logo.png` (ver `public/marca/LEEME.md`). Mientras no
+esté, la app muestra el nombre escrito y un círculo con las iniciales.
 
 ## Stack
 
@@ -82,12 +94,28 @@ Copia `.env.local.example` a `.env.local` y rellena:
 Este es el único usuario que hay que crear a mano; los demás se crean desde la
 app.
 
-1. Supabase → **Authentication → Users → Add user** con tu correo y contraseña.
-2. Entra una vez en la app: el trigger te crea el perfil.
+**Nadie entra con correo.** Se entra con **nombre y apellido + contraseña**, y la
+contraseña la da el administrador. Como Supabase Auth necesita un identificador
+con forma de correo, se deriva del nombre de forma determinista
+(`lib/usuario.ts`):
+
+```
+"Carlos Raúl"  →  carlos-raul@usuarios.skyranch.es
+```
+
+No es un buzón y no se envía correo a esa dirección. Da igual acentos,
+mayúsculas o espacios de más: «GILENIS PEREZ» y «Gilenis Pérez» son el mismo
+identificador.
+
+1. Supabase → **Authentication → Users → Add user**, con el identificador
+   derivado de tu nombre (por ejemplo `carlos-raul@usuarios.skyranch.es`) y la
+   contraseña que quieras. Marca el correo como confirmado.
+2. Entra una vez en la app escribiendo **tu nombre y apellido**: el trigger te
+   crea el perfil.
 3. En el SQL Editor:
 
 ```sql
-update perfiles set rol = 'admin' where email = 'tu@empresa.com';
+update perfiles set rol = 'admin' where nombre = 'Carlos Raúl';
 ```
 
 ### 4. Centros y personal
@@ -100,11 +128,12 @@ Todo desde **Equipo → Personal y centros**:
    si estás dentro del local y toma las coordenadas del GPS. Luego el radio
    permitido: 150 m es un punto de partida razonable en ciudad; súbelo si el GPS
    falla dentro del local.
-2. **Da de alta a cada trabajador**: nombre, correo, una contraseña temporal (el
-   botón *Generar* propone una legible para dictarla por teléfono), centro,
-   horas de contrato y rol. La cuenta queda lista al instante, sin pasar por
-   Supabase ni depender de que haya correo configurado. Si alguien pierde la
-   contraseña, la cambias desde su ficha.
+2. **Da de alta a cada trabajador**: nombre y apellido, una contraseña (el botón
+   *Generar* propone una legible para dictarla por teléfono), centro, horas de
+   contrato y rol. La cuenta queda lista al instante y esa persona entra
+   escribiendo su nombre y esa contraseña. Si dos personas se llaman igual, la
+   app lo detecta y pide el segundo apellido. Si alguien pierde la contraseña,
+   se la cambias desde su ficha.
 
 Roles: `admin` (todo: centros, altas, correcciones, informes de todos),
 `encargado` (solo su centro), `empleado` (solo ficha y ve lo suyo). El alcance no

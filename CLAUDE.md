@@ -97,6 +97,22 @@ Tipos de fichaje: `entrada → pausa_inicio ⇄ pausa_fin → salida`.
   con `instanteLocal()` / `finTurno()` de `lib/fechas.ts`, que ya manejan los
   cambios de hora. **No uses `new Date('YYYY-MM-DDTHH:MM')`** para horas locales.
 
+## Identidad y marca
+- **Nadie entra con correo.** Se entra con nombre y apellido; el identificador
+  de Supabase Auth se deriva del nombre en `lib/usuario.ts`
+  (`accesoDeNombre`). Es determinista a propósito: así el login no necesita
+  consultar la base antes de autenticar y no se filtra quién existe. Si tocas
+  la normalización, rompes el acceso de todo el mundo — no la cambies sin
+  migrar las cuentas.
+- Dos personas con el mismo nombre chocan; `crearEmpleado` lo detecta y pide el
+  segundo apellido.
+- El diseño sigue el fundamento Apple: tipografía del sistema, escala fija,
+  neutros cálidos y **un solo acento** (el marrón del sello). Todo en los
+  tokens del principio de `app/globals.css`; no metas colores a pelo en los
+  componentes.
+- El sello se activa poniendo `LOGO_SRC` en `lib/constants.ts`; `Marca` y
+  `Sello` degradan al nombre escrito si no está.
+
 ## Convenciones
 - Datos en Server Components; mutaciones en Server Actions (`app/actions.ts`) y
   luego `revalidatePath`.

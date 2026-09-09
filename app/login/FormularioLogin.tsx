@@ -23,19 +23,21 @@ export default function FormularioLogin({ destino }: { destino: string }) {
   }
 
   return (
-    <form onSubmit={alEnviar} className="columna">
+    <form onSubmit={alEnviar} className="columna" style={{ gap: 14 }}>
       <input type="hidden" name="redirect" value={destino} />
       <div>
-        <label htmlFor="email">Correo</label>
+        <label htmlFor="nombre">Nombre y apellido</label>
         <input
-          id="email"
-          name="email"
-          type="email"
-          inputMode="email"
-          autoComplete="username"
-          autoCapitalize="off"
+          id="nombre"
+          name="nombre"
+          type="text"
+          inputMode="text"
+          autoComplete="name"
+          autoCapitalize="words"
+          autoCorrect="off"
+          spellCheck={false}
           required
-          placeholder="nombre@empresa.com"
+          placeholder="Gilenis Pérez"
         />
       </div>
       <div>
@@ -52,6 +54,9 @@ export default function FormularioLogin({ destino }: { destino: string }) {
         {enviando ? 'Entrando…' : 'Entrar'}
       </button>
       {error && <p className="nota error">{error}</p>}
+      <p className="mini suave centrado">
+        La contraseña te la da tu responsable. Si no la recuerdas, pídesela.
+      </p>
     </form>
   )
 }

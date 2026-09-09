@@ -111,19 +111,19 @@ export default async function Empleados() {
           ) : (
             <Formulario accion={crearEmpleado} boton="Crear cuenta" limpiarAlEnviar>
               <div>
-                <label htmlFor="ne-nombre">Nombre y apellidos</label>
-                <input id="ne-nombre" name="nombre" required minLength={2} placeholder="María López" />
-              </div>
-              <div>
-                <label htmlFor="ne-email">Correo (con el que entrará)</label>
+                <label htmlFor="ne-nombre">Nombre y apellido</label>
                 <input
-                  id="ne-email"
-                  name="email"
-                  type="email"
+                  id="ne-nombre"
+                  name="nombre"
                   required
-                  autoCapitalize="off"
-                  placeholder="maria@empresa.com"
+                  minLength={5}
+                  autoCapitalize="words"
+                  placeholder="Gilenis Pérez"
                 />
+                <p className="mini suave" style={{ marginTop: 6 }}>
+                  Esto es lo que escribirá para entrar. Da igual acentos o mayúsculas, pero el
+                  nombre y el apellido tienen que coincidir.
+                </p>
               </div>
               <CampoPassword id="ne-password" />
               <div className="campos dos">
@@ -188,7 +188,7 @@ export default async function Empleados() {
                 <div className="columna" style={{ marginTop: 12, gap: 16 }}>
                   <Formulario accion={guardarEmpleado} boton="Guardar">
                     <input type="hidden" name="id" value={p.id} />
-                    <p className="mini suave">{p.email}</p>
+                    <p className="mini suave">Entra escribiendo: {p.nombre}</p>
                     <div>
                       <label htmlFor={`rol-${p.id}`}>Rol</label>
                       <select id={`rol-${p.id}`} name="rol" defaultValue={p.rol}>

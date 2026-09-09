@@ -68,7 +68,8 @@ export default async function Fichar() {
 
   return (
     <>
-      <Cabecera titulo={`Hola, ${perfil.nombre.split(' ')[0]}`} subtitulo={perfil.email ?? ''} />
+      {/* El centro ya se ve en la tarjeta de fichaje; aquí sobra repetirlo. */}
+      <Cabecera titulo={`Hola, ${perfil.nombre.split(' ')[0]}`} />
       <main className="pagina">
         {avisos.map((a) => (
           <AvisoBanner key={a.id} aviso={a} />

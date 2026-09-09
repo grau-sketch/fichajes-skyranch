@@ -1,3 +1,4 @@
+import Sello from '@/components/Sello'
 import FormularioLogin from './FormularioLogin'
 
 export const metadata = { title: 'Entrar · Fichajes' }
@@ -9,16 +10,9 @@ export default function Login({
 }) {
   return (
     <main className="pagina" style={{ paddingTop: 'max(48px, env(safe-area-inset-top))' }}>
-      <div className="centrado columna" style={{ gap: 6, marginBottom: 8 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/icons/icono-192.png"
-          alt=""
-          width={64}
-          height={64}
-          style={{ borderRadius: 16, margin: '0 auto' }}
-        />
-        <h1>Fichajes</h1>
+      <div className="centrado columna" style={{ gap: 10, marginBottom: 12 }}>
+        <Sello />
+        <h1>Skyranch</h1>
         <p className="suave pequeno">Registro de jornada</p>
       </div>
 

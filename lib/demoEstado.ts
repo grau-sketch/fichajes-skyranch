@@ -15,6 +15,7 @@ import {
   TURNOS,
 } from './demo'
 import { fechaLocal, horaAMinutos } from './fechas'
+import { accesoDeNombre, nombreValido, usuarioDeNombre } from './usuario'
 import { distanciaM } from './geo'
 import { minutosTurno } from './jornada'
 import type { Aviso, Centro, Fichaje, Perfil, PlantillaTurno, Turno } from './types'
@@ -391,22 +392,23 @@ export function crearEmpleadoDemo(
   e: EstadoDemo,
   datos: {
     nombre: string
-    email: string
     password: string
     rol: Rol
     centro_id: string
     horas_semana: number
   },
 ): Resultado {
-  if (datos.nombre.trim().length < 2) return { ok: false, error: 'Escribe el nombre completo' }
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(datos.email)) {
-    return { ok: false, error: 'El correo no es válido' }
-  }
+  const nombre = datos.nombre.trim().replace(/\s+/g, ' ')
+  if (!nombreValido(nombre)) return { ok: false, error: 'Escribe el nombre y el apellido' }
   if (datos.password.length < 8) {
     return { ok: false, error: 'La contraseña necesita al menos 8 caracteres' }
   }
-  if (e.perfiles.some((p) => p.email?.toLowerCase() === datos.email.toLowerCase())) {
-    return { ok: false, error: 'Ya hay una cuenta con ese correo' }
+  // Dos personas con el mismo nombre entrarían con el mismo identificador.
+  if (e.perfiles.some((p) => usuarioDeNombre(p.nombre) === usuarioDeNombre(nombre))) {
+    return {
+      ok: false,
+      error: `Ya hay alguien dado de alta como "${nombre}". Añade el segundo apellido para diferenciarlos.`,
+    }
   }
   if (datos.horas_semana < 0 || datos.horas_semana > 60) {
     return { ok: false, error: 'Las horas semanales deben estar entre 0 y 60' }
@@ -414,8 +416,8 @@ export function crearEmpleadoDemo(
 
   const nuevo: Perfil = {
     id: id('perfil'),
-    nombre: datos.nombre.trim(),
-    email: datos.email.toLowerCase(),
+    nombre,
+    email: accesoDeNombre(nombre),
     rol: datos.rol,
     centro_id: datos.centro_id || null,
     horas_semana: datos.horas_semana,
@@ -424,7 +426,7 @@ export function crearEmpleadoDemo(
   return {
     ok: true,
     estado: { ...e, perfiles: [...e.perfiles, nuevo] },
-    mensaje: `${nuevo.nombre} ya puede entrar con ${nuevo.email}`,
+    mensaje: `${nuevo.nombre} ya puede entrar escribiendo su nombre y la contraseña que le has dado`,
   }
 }
 

@@ -1,5 +1,6 @@
 'use client'
 
+import Marca from '@/components/Marca'
 import { useDemo } from '@/components/DemoProvider'
 import PanelEquipo, { type FilaEquipo } from '@/components/PanelEquipo'
 import {
@@ -78,8 +79,9 @@ export default function Vista() {
       <header className="cabecera">
         <div className="cabecera-inner">
           <div className="crece">
+            <Marca />
             <h1>Equipo</h1>
-            <p className="quien">{admin.nombre} · todos los centros</p>
+            <p className="quien">{admin.nombre}</p>
           </div>
         </div>
       </header>

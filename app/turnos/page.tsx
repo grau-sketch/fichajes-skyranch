@@ -47,7 +47,7 @@ export default async function MiHorario() {
 
   return (
     <>
-      <Cabecera titulo="Mi horario" subtitulo={centro?.nombre ?? perfil.nombre} />
+      <Cabecera titulo="Mi horario" subtitulo={perfil.nombre} />
       <main className="pagina">
         <div className="metricas">
           <div>

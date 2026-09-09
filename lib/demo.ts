@@ -4,6 +4,7 @@
  */
 import { TZ } from './constants'
 import { hoyLocal, instanteLocal, sumarDias } from './fechas'
+import { accesoDeNombre } from './usuario'
 import type { Aviso, Centro, Fichaje, Perfil, PlantillaTurno, Turno } from './types'
 
 export const HOY = hoyLocal(TZ)
@@ -50,7 +51,8 @@ function perfil(
   return {
     id,
     nombre,
-    email: `${id}@skyranch.es`,
+    // Identificador interno derivado del nombre; nadie lo escribe ni lo ve.
+    email: accesoDeNombre(nombre),
     rol,
     centro_id: 'skyranch',
     horas_semana,
@@ -62,9 +64,9 @@ export const ADMIN = perfil('carlos', 'Carlos Raúl', 'admin')
 
 export const PERFILES: Perfil[] = [
   ADMIN,
-  perfil('gilenis', 'Gilenis', 'empleado', 40),
-  perfil('gilbert', 'Gilbert', 'empleado', 40),
-  perfil('pedro', 'Pedro', 'empleado', 30),
+  perfil('gilenis', 'Gilenis Pérez', 'empleado', 40),
+  perfil('gilbert', 'Gilbert Núñez', 'empleado', 40),
+  perfil('pedro', 'Pedro Muñoz', 'empleado', 30),
 ]
 
 export const NOMBRE_POR: Record<string, string> = Object.fromEntries(
@@ -224,7 +226,7 @@ export const AVISOS_ADMIN: Aviso[] = [
     fichaje_id: 'fichaje-5',
     tipo: 'fichaje_fuera_radio',
     titulo: 'Fichaje fuera del centro',
-    cuerpo: 'Gilenis ha fichado entrada a 1240 m de SKYRANCH.',
+    cuerpo: 'Gilenis Pérez ha fichado entrada a 1240 m de SKYRANCH.',
     enviado_en: iso(AYER, '08:58'),
     leido_en: null,
   },
@@ -236,7 +238,7 @@ export const AVISOS_ADMIN: Aviso[] = [
     fichaje_id: null,
     tipo: 'turno_sin_fichar',
     titulo: 'Turno sin fichar',
-    cuerpo: `Pedro tenía turno el ${fechaLegible(AYER)} de 08:00 a 14:00 y no ha fichado nada.`,
+    cuerpo: `Pedro Muñoz tenía turno el ${fechaLegible(AYER)} de 08:00 a 14:00 y no ha fichado nada.`,
     enviado_en: iso(AYER, '14:20'),
     leido_en: null,
   },

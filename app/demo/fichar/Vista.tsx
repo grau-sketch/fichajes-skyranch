@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import Marca from '@/components/Marca'
 import AvisoBanner from '@/components/AvisoBanner'
 import ReiniciarDemo from '@/components/ReiniciarDemo'
 import { useDemo } from '@/components/DemoProvider'
@@ -71,11 +72,9 @@ export default function Vista() {
       <header className="cabecera">
         <div className="cabecera-inner">
           <div className="crece">
+            <Marca />
             <h1>Hola, {yo.nombre.split(' ')[0]}</h1>
-            <p className="quien truncar">
-              {yo.email}
-              {centro && ` · ${centro.nombre}`}
-            </p>
+
           </div>
           <span className="btn mini" aria-hidden>
             Salir

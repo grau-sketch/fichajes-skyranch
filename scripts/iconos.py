@@ -1,5 +1,8 @@
 """Genera los iconos PNG de la PWA sin dependencias (zlib + struct).
 
+Provisional: un reloj con los colores del sello. Cuando esté
+`public/marca/logo.png`, los iconos saldrán del sello real.
+
     python3 scripts/iconos.py
 
 Un reloj blanco sobre el color de marca. Si cambias --marca en globals.css,
@@ -10,8 +13,8 @@ import struct
 import zlib
 from pathlib import Path
 
-MARCA = (0x1F, 0x6F, 0xEB)
-BLANCO = (0xFF, 0xFF, 0xFF)
+MARCA = (0x4A, 0x31, 0x21)   # marrón del sello Skyranch
+BLANCO = (0xE8, 0xDD, 0xC4)  # tostado claro del sello
 SALIDA = Path(__file__).resolve().parent.parent / "public" / "icons"
 
 

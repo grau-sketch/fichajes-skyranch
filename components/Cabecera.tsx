@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { cerrarSesion } from '@/app/actions'
+import Marca from '@/components/Marca'
 
 export default function Cabecera({
   titulo,
@@ -14,8 +15,9 @@ export default function Cabecera({
     <header className="cabecera no-imprimir">
       <div className="cabecera-inner">
         <div className="crece">
+          <Marca />
           {volver && (
-            <Link href={volver} className="mini suave">
+            <Link href={volver} className="mini suave" style={{ display: 'block' }}>
               ← Volver
             </Link>
           )}

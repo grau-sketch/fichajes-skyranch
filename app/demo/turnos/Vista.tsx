@@ -1,5 +1,6 @@
 'use client'
 
+import Marca from '@/components/Marca'
 import CalendarioTurnos from '@/components/CalendarioTurnos'
 import { useDemo } from '@/components/DemoProvider'
 import { TZ } from '@/lib/constants'
@@ -10,7 +11,6 @@ import { minutosTurno } from '@/lib/jornada'
 export default function Vista() {
   const { estado } = useDemo()
   const yo = estado.perfiles.find((p) => p.id === estado.yo)!
-  const centro = estado.centros.find((c) => c.id === yo.centro_id) ?? null
   const turnos = estado.turnos.filter((t) => t.empleado_id === yo.id)
 
   const enSemana = (desde: string, hasta: string) =>
@@ -26,8 +26,9 @@ export default function Vista() {
       <header className="cabecera">
         <div className="cabecera-inner">
           <div className="crece">
+            <Marca />
             <h1>Mi horario</h1>
-            <p className="quien">{centro?.nombre ?? yo.nombre}</p>
+            <p className="quien">{yo.nombre}</p>
           </div>
         </div>
       </header>

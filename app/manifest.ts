@@ -9,16 +9,16 @@ export default function manifest(): MetadataRoute.Manifest {
   const inicio = supabaseConfigurado || !demoActiva ? '/fichar' : '/demo/fichar'
 
   return {
-    name: 'Fichajes SKYRANCH',
-    short_name: 'Fichajes',
-    description: 'Registro de jornada con ubicación, turnos e informes',
+    name: 'Skyranch · Fichajes',
+    short_name: 'Skyranch',
+    description: 'Registro de jornada de Skyranch: fichaje con ubicación, turnos e informes',
     id: '/',
     start_url: inicio,
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#f6f7f9',
-    theme_color: '#1f6feb',
+    background_color: '#f6f3ed',
+    theme_color: '#4a3121',
     lang: 'es',
     dir: 'ltr',
     categories: ['business', 'productivity'],

@@ -8,6 +8,7 @@ import { ROLES, TIPOS_FICHAJE } from '@/lib/constants'
 import { geocodificar } from '@/lib/geocodificar'
 import { notificarAvisosDeFichaje } from '@/lib/notificar'
 import { requerirGestor, requerirPerfil } from '@/lib/sesion'
+import { accesoDeNombre, nombreValido } from '@/lib/usuario'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { Fichaje } from '@/lib/types'
@@ -17,19 +18,24 @@ export type Resultado<T = null> = { ok: true; datos: T } | { ok: false; error: s
 // --- Sesión ------------------------------------------------------------------
 
 export async function entrar(_previo: unknown, form: FormData): Promise<{ error: string } | void> {
-  const email = String(form.get('email') ?? '').trim().toLowerCase()
+  const nombre = String(form.get('nombre') ?? '').trim().replace(/\s+/g, ' ')
   const password = String(form.get('password') ?? '')
   const destino = String(form.get('redirect') ?? '/fichar')
 
-  if (!email || !password) return { error: 'Rellena el correo y la contraseña' }
+  if (!nombre || !password) return { error: 'Escribe tu nombre y tu contraseña' }
+  if (!nombreValido(nombre)) return { error: 'Escribe tu nombre y tu apellido' }
 
   const supabase = createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  // El identificador se deriva del nombre; nadie usa correo para entrar.
+  const { error } = await supabase.auth.signInWithPassword({
+    email: accesoDeNombre(nombre),
+    password,
+  })
   if (error) {
     return {
       error:
         error.message === 'Invalid login credentials'
-          ? 'Correo o contraseña incorrectos'
+          ? 'Nombre o contraseña incorrectos. Revisa que escribes tu nombre y apellido igual que te lo dieron.'
           : 'No se ha podido iniciar sesión. Inténtalo de nuevo.',
     }
   }
@@ -358,16 +364,17 @@ export async function crearEmpleado(_previo: unknown, form: FormData) {
   const gestor = await requerirGestor()
   if (gestor.rol !== 'admin') return { error: 'Solo un administrador puede dar de alta' }
 
-  const nombre = String(form.get('nombre') ?? '').trim()
-  const email = String(form.get('email') ?? '').trim().toLowerCase()
+  const nombre = String(form.get('nombre') ?? '').trim().replace(/\s+/g, ' ')
   const password = String(form.get('password') ?? '')
   const rol = String(form.get('rol') ?? 'empleado')
   const centro_id = String(form.get('centro_id') ?? '')
   const horas_semana = Number(form.get('horas_semana') ?? 40)
 
-  if (nombre.length < 2) return { error: 'Escribe el nombre completo' }
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: 'El correo no es válido' }
+  if (!nombreValido(nombre)) return { error: 'Escribe el nombre y el apellido' }
   if (password.length < 8) return { error: 'La contraseña necesita al menos 8 caracteres' }
+
+  // Con lo que la persona escribirá para entrar se construye su identificador.
+  const email = accesoDeNombre(nombre)
   if (!ROLES.includes(rol as Rol)) return { error: 'Rol no válido' }
   if (Number.isNaN(horas_semana) || horas_semana < 0 || horas_semana > 60) {
     return { error: 'Las horas semanales deben estar entre 0 y 60' }
@@ -393,7 +400,11 @@ export async function crearEmpleado(_previo: unknown, form: FormData) {
 
   if (error || !data.user) {
     const yaExiste = /already|exists|registered/i.test(error?.message ?? '')
-    return { error: yaExiste ? 'Ya hay una cuenta con ese correo' : 'No se ha podido crear la cuenta' }
+    return {
+      error: yaExiste
+        ? `Ya hay alguien dado de alta como "${nombre}". Añade el segundo apellido para diferenciarlos.`
+        : 'No se ha podido crear la cuenta',
+    }
   }
 
   // El trigger de auth.users ya creó el perfil; aquí se completan sus datos.
@@ -408,7 +419,7 @@ export async function crearEmpleado(_previo: unknown, form: FormData) {
 
   revalidatePath('/admin/empleados')
   revalidatePath('/admin')
-  return { ok: `${nombre} ya puede entrar con ${email}` }
+  return { ok: `${nombre} ya puede entrar escribiendo su nombre y la contraseña que le has dado` }
 }
 
 /** Cambia la contraseña de un trabajador (para cuando la pierde). */

@@ -6,10 +6,10 @@ import { createClient } from '@/lib/supabase/server'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Fichajes',
-  description: 'Registro de jornada con ubicación, turnos e informes',
-  applicationName: 'Fichajes',
-  appleWebApp: { capable: true, title: 'Fichajes', statusBarStyle: 'default' },
+  title: { default: 'Skyranch · Fichajes', template: '%s · Skyranch' },
+  description: 'Registro de jornada de Skyranch: fichaje con ubicación, turnos e informes',
+  applicationName: 'Skyranch',
+  appleWebApp: { capable: true, title: 'Skyranch', statusBarStyle: 'default' },
   icons: {
     icon: [{ url: '/icons/icono-192.png', sizes: '192x192', type: 'image/png' }],
     apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
@@ -23,8 +23,8 @@ export const viewport: Viewport = {
   maximumScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#1f6feb' },
-    { media: '(prefers-color-scheme: dark)', color: '#111316' },
+    { media: '(prefers-color-scheme: light)', color: '#f6f3ed' },
+    { media: '(prefers-color-scheme: dark)', color: '#000000' },
   ],
 }
 

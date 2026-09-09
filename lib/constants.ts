@@ -1,6 +1,18 @@
 // Fuente única de verdad: tipos de fichaje, transiciones, roles y umbrales.
 // Si cambias algo aquí, replica el CHECK / la transición en db/schema.sql.
 
+// --- Marca -------------------------------------------------------------------
+export const MARCA_NOMBRE = 'Skyranch'
+export const MARCA_LUGAR = 'Rozas de Puerto Real · Madrid'
+/**
+ * Sello de la marca.
+ *
+ * Para activarlo: deja el PNG del sello en `public/marca/logo.png` y cambia
+ * este null por '/marca/logo.png'. Mientras sea null se muestra el nombre
+ * escrito y el círculo con las iniciales, sin imágenes rotas.
+ */
+export const LOGO_SRC: string | null = null
+
 export const ROLES = ['admin', 'encargado', 'empleado'] as const
 export type Rol = (typeof ROLES)[number]
 

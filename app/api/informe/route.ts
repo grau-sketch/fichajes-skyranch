@@ -120,7 +120,7 @@ export async function GET(peticion: NextRequest) {
   // ---------------------------------------------------------------- movimientos
   if (movimientos) {
     const cabeceras = [
-      'Empleado', 'Correo', 'Centro', 'Fecha', 'Hora', 'Movimiento', 'Origen',
+      'Empleado', 'Usuario', 'Centro', 'Fecha', 'Hora', 'Movimiento', 'Origen',
       'Ubicacion', 'Distancia al centro (m)', 'Precision GPS (m)',
       'Estado', 'Corrige a', 'Modificado por', 'Anulado por', 'Motivo', 'Registrado en',
     ]
@@ -177,7 +177,7 @@ export async function GET(peticion: NextRequest) {
 
   // ------------------------------------------------------------------ jornadas
   const cabeceras = [
-    'Empleado', 'Correo', 'Centro', 'Fecha', 'Estado', 'Entrada', 'Salida',
+    'Empleado', 'Usuario', 'Centro', 'Fecha', 'Estado', 'Entrada', 'Salida',
     'Pausa (h:mm)', 'Trabajado (h:mm)', 'Trabajado (min)', 'Planificado (h:mm)',
     'Ubicacion verificada', 'Distancia max (m)', 'Modificado a mano', 'Fichajes anulados',
     'Incidencias',

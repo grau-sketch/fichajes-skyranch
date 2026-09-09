@@ -121,7 +121,6 @@ export default function Vista() {
                 aplicar((e) =>
                   crearEmpleadoDemo(e, {
                     nombre: String(form.get('nombre') ?? ''),
-                    email: String(form.get('email') ?? ''),
                     password: String(form.get('password') ?? ''),
                     rol: String(form.get('rol') ?? 'empleado') as Rol,
                     centro_id: String(form.get('centro_id') ?? ''),
@@ -131,19 +130,19 @@ export default function Vista() {
               }
             >
               <div>
-                <label htmlFor="ne-nombre">Nombre y apellidos</label>
-                <input id="ne-nombre" name="nombre" required minLength={2} placeholder="María López" />
-              </div>
-              <div>
-                <label htmlFor="ne-email">Correo (con el que entrará)</label>
+                <label htmlFor="ne-nombre">Nombre y apellido</label>
                 <input
-                  id="ne-email"
-                  name="email"
-                  type="email"
+                  id="ne-nombre"
+                  name="nombre"
                   required
-                  autoCapitalize="off"
-                  placeholder="maria@empresa.com"
+                  minLength={5}
+                  autoCapitalize="words"
+                  placeholder="Gilenis Pérez"
                 />
+                <p className="mini suave" style={{ marginTop: 6 }}>
+                  Esto es lo que escribirá para entrar. Da igual acentos o mayúsculas, pero el
+                  nombre y el apellido tienen que coincidir.
+                </p>
               </div>
               <CampoPassword id="ne-password" />
               <div className="campos dos">
@@ -219,7 +218,7 @@ export default function Vista() {
                       )
                     }
                   >
-                    <p className="mini suave">{p.email}</p>
+                    <p className="mini suave">Entra escribiendo: {p.nombre}</p>
                     <div>
                       <label htmlFor={`rol-${p.id}`}>Rol</label>
                       <select id={`rol-${p.id}`} name="rol" defaultValue={p.rol}>
