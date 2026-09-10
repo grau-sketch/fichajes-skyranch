@@ -19,6 +19,12 @@ si falta un fichaje. Se instala desde un enlace, sin tiendas de apps.
 > En esta máquina solo hay **bun** (no npm). `bun install`, `bun run dev`,
 > `bun run build`, `bun run pruebas`.
 
+> `.env.local` es un ejemplo sin credenciales reales: en local la app arranca
+> siempre en `/demo`. La base de producción **se migra a mano** por el editor SQL
+> de Supabase. Si añades una columna, además de tocar `db/schema.sql` deja el
+> `alter table … add column if not exists` en `db/migraciones/` — el esquema
+> completo ya se pasó una vez y nadie lo vuelve a pasar entero.
+
 ## Invariantes (no los rompas)
 
 1. **`fichajes` no se escribe desde el cliente.** No tiene políticas de
@@ -189,7 +195,18 @@ hacen en el layout, no en cada página.
   luego `revalidatePath`.
 - Los formularios de administración usan `components/Formulario.tsx`, que llama a
   la acción y muestra el resultado (evitamos `useFormState` para no depender de
-  APIs experimentales de React).
+  APIs experimentales de React). **Al terminar bien llama a `router.refresh()`**:
+  `revalidatePath` limpia la caché del servidor, pero sin el refresco nadie le
+  pide a la página que se vuelva a pintar y el cambio parece no haberse
+  guardado. No lo quites.
+- **Una acción de escritura no responde `ok` sin comprobar que cambió algo.**
+  Un `update` que RLS deja en cero filas no da error en Postgres: hay que pedir
+  `.select()` y mirar las filas devueltas. Y el error de Postgres se cuenta
+  (`porQueNoGuarda` en `app/actions.ts`), no se cambia por un "no se ha podido
+  guardar" que no dice nada.
+- **Las personas se editan en un solo sitio**, `/admin/personas/[id]`. Si añades
+  un campo del perfil, va ahí; no vuelvas a montar un medio formulario en
+  «Personal y centros», que es de donde venía no poder cambiar un nombre.
 - Móvil primero: objetivos táctiles de 46 px mínimo, `font-size: 16px` en los
   inputs (si no, iOS hace zoom), una sola acción primaria por pantalla.
 - Interfaz y código en español, igual que el resto de los repos.
