@@ -219,6 +219,19 @@ hacen en el layout, no en cada página.
 - El corte es 960 px. Si lo cambias, cámbialo en todas las reglas del bloque
   «Consola de administración» de `globals.css` a la vez.
 
+## Service worker
+`public/sw.js` es **network-first para navegación**, con caída a la caché si la
+red no contesta en 2,5 s. Antes era stale-while-revalidate y eso tenía un
+efecto que costó ver: el HTML cacheado apunta a los chunks del despliegue
+anterior —que también están cacheados—, así que la primera carga tras publicar
+mostraba la versión vieja **entera**. Si lo vuelves a poner en cache-first,
+vuelve el «hay que recargar dos veces».
+
+`components/RegistrarSW.tsx` recarga la pestaña una vez cuando el worker nuevo
+toma el control, y solo si ya había uno antes (en la primera instalación no hay
+nada que reemplazar). Los estáticos de `/_next/static` sí van cache-first:
+llevan hash en el nombre, son inmutables.
+
 ## Convenciones
 - Datos en Server Components; mutaciones en Server Actions (`app/actions.ts`) y
   luego `revalidatePath`.
