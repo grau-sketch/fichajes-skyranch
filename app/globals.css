@@ -523,6 +523,139 @@ tfoot th { border-bottom: none; font-weight: 600; color: var(--texto); }
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* Día de descanso puesto a mano: se distingue de un día sin planificar. */
+.turno-chip.libre-chip { background: var(--superficie-2); }
+.turno-chip.libre-chip .horas { color: var(--texto-2); }
+.cal-celda.dia-libre { background: var(--superficie-2); }
+
+/* Texto solo para lectores de pantalla. */
+.oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Cuenta abierta (abajo a la derecha) --------------------------------- */
+.sesion {
+  position: fixed;
+  right: 16px;
+  /* Por encima de la barra inferior en móvil. */
+  bottom: calc(env(safe-area-inset-bottom) + 66px);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 10px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r-pill);
+  background: var(--velo);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: var(--sombra);
+}
+.sesion-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 50%;
+  background: var(--marca);
+  color: var(--marca-texto);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+.sesion-quien { display: flex; flex-direction: column; min-width: 0; }
+.sesion-nombre { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.sesion-rol { font-size: 12px; color: var(--texto-2); }
+.sesion-salir {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  appearance: none;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--texto-2);
+  cursor: pointer;
+  transition: background 200ms var(--curva), color 200ms var(--curva);
+}
+.sesion-salir svg { width: 20px; height: 20px; }
+.sesion-salir:hover { background: var(--superficie-2); color: var(--texto); }
+.sesion-salir:active { background: var(--linea-fuerte); }
+span.sesion-salir { cursor: default; opacity: 0.45; }
+
+@media (min-width: 960px) {
+  .sesion { right: 24px; bottom: 24px; }
+}
+
+/* --- Planificador semanal ------------------------------------------------ */
+.semana-barra { display: flex; align-items: center; gap: 10px; }
+.semana-barra .btn.mini { min-width: 40px; font-size: 18px; line-height: 1; }
+
+.segmentado.mini button { font-size: 13px; padding: 5px 8px; min-height: 28px; }
+
+.planificador > .dia {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--linea);
+}
+.planificador > .dia:last-child { border-bottom: 0; }
+.planificador > .dia.es-hoy { box-shadow: inset 3px 0 0 var(--marca); }
+/* Un día libre se ve sin leerlo. */
+.planificador > .dia.es-libre { background: var(--superficie-2); }
+.planificador > .dia.es-nada .dia-nombre { color: var(--texto-2); }
+
+.dia-cabecera { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dia-nombre { font-weight: 600; letter-spacing: -0.01em; }
+.dia-cabecera .segmentado { flex: 0 0 auto; width: 190px; }
+/* Aquí el elegido tiene que cantar: la semana se lee de un golpe de vista, y
+   el gris sobre gris del segmentado normal no se distingue en oscuro. */
+.dia-cabecera .segmentado button[aria-pressed='true'] {
+  background: var(--marca);
+  color: var(--marca-texto);
+  box-shadow: none;
+}
+.dia-total {
+  min-width: 62px;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dia-tramos { display: grid; gap: 8px; margin-top: 12px; }
+.tramo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tramo-etiqueta { min-width: 58px; }
+.tramo input[type='time'] { width: 116px; min-height: 40px; }
+.tramo-pausa { display: inline-flex; align-items: center; gap: 6px; }
+.tramo-pausa input { width: 66px; min-height: 40px; text-align: center; }
+
+.planificador-pie {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--superficie-2);
+  font-size: 15px;
+}
+
+/* En un móvil estrecho el día se apila y los tramos van a lo ancho. */
+@media (max-width: 560px) {
+  .dia-cabecera .segmentado { width: 100%; order: 3; }
+  .dia-total { order: 2; }
+  .tramo-etiqueta { min-width: 100%; }
+  .tramo input[type='time'] { flex: 1; width: auto; }
+}
+
 /* --- Calendario ---------------------------------------------------------- */
 .cal-nav { display: flex; align-items: center; gap: 8px; }
 .cal-nav .titulo {

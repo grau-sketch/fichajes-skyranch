@@ -134,12 +134,24 @@ create table if not exists turnos (
   hora_inicio   time not null,
   hora_fin      time not null,
   pausa_min     integer not null default 0 check (pausa_min >= 0),
+  -- 'libre' es un día de descanso planificado: se guarda como una fila del
+  -- día con hora_inicio = hora_fin, para que el trabajador lo vea en su
+  -- calendario y para que no se espere ningún fichaje. No es un turno de
+  -- trabajo: no suma minutos y no cuenta como turno sin fichar.
   estado        text not null default 'planificado'
-                check (estado in ('planificado','confirmado','cancelado')),
+                check (estado in ('planificado','confirmado','cancelado','libre')),
   nota          text,
   creado_en     timestamptz not null default now(),
   unique (empleado_id, fecha, hora_inicio)
 );
+
+alter table turnos drop constraint if exists turnos_estado_check;
+alter table turnos add constraint turnos_estado_check
+  check (estado in ('planificado','confirmado','cancelado','libre'));
+
+-- Un día libre es único por día: no tiene sentido tener dos.
+create unique index if not exists turnos_libre_unico
+  on turnos (empleado_id, fecha) where estado = 'libre';
 
 create index if not exists turnos_empleado_fecha_idx on turnos (empleado_id, fecha);
 create index if not exists turnos_fecha_idx on turnos (fecha);

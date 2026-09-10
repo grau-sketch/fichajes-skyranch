@@ -14,7 +14,7 @@ import {
 } from '@/lib/fechas'
 import { ABREVIA_AUSENCIA, ausenciaDelDia } from '@/lib/ausencias'
 import { ETIQUETA_AUSENCIA } from '@/lib/constants'
-import { minutosTurno } from '@/lib/jornada'
+import { minutosTurno, turnosDeTrabajo } from '@/lib/jornada'
 import type { Ausencia, Turno } from '@/lib/types'
 
 type Vista = 'semana' | 'mes'
@@ -55,13 +55,22 @@ export default function CalendarioTurnos({
 
   const porDia = useMemo(() => {
     const mapa = new Map<string, Turno[]>()
-    for (const t of turnos) {
-      if (t.estado === 'cancelado') continue
+    for (const t of turnosDeTrabajo(turnos)) {
       mapa.set(t.fecha, [...(mapa.get(t.fecha) ?? []), t])
     }
     for (const [, lista] of mapa) lista.sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio))
     return mapa
   }, [turnos])
+
+  /**
+   * Días de descanso puestos a mano. Se distinguen de un día sin nada: «Libre»
+   * es una decisión del responsable, «Sin planificar» es que todavía no la ha
+   * tomado, y para quien lo lee no es lo mismo.
+   */
+  const libres = useMemo(
+    () => new Set(turnos.filter((t) => t.estado === 'libre').map((t) => t.fecha)),
+    [turnos],
+  )
 
   const desde = vista === 'semana' ? inicioSemana(ancla) : inicioMes(ancla)
   const hasta = vista === 'semana' ? finSemana(ancla) : finMes(ancla)
@@ -164,8 +173,13 @@ export default function CalendarioTurnos({
                     <span className="horas">{ETIQUETA_AUSENCIA[ausente.tipo]}</span>
                     {ausente.motivo && <span className="detalle">{ausente.motivo}</span>}
                   </span>
+                ) : libres.has(d) ? (
+                  <span className="turno-chip libre-chip">
+                    <span className="horas">Libre</span>
+                    <span className="detalle">día de descanso</span>
+                  </span>
                 ) : delDia.length === 0 ? (
-                  <p className="libre">Libre</p>
+                  <p className="libre">Sin planificar</p>
                 ) : (
                   <div className="fila crece" style={{ gap: 8, flexWrap: 'wrap' }}>
                     {delDia.map((t) => (
@@ -210,7 +224,13 @@ export default function CalendarioTurnos({
                   key={d}
                   type="button"
                   className={`cal-celda ${
-                    ausente ? 'ausencia' : delDia.length > 0 ? 'con-turno' : ''
+                    ausente
+                      ? 'ausencia'
+                      : delDia.length > 0
+                        ? 'con-turno'
+                        : libres.has(d)
+                          ? 'dia-libre'
+                          : ''
                   } ${d === hoy ? 'hoy' : ''}`}
                   aria-pressed={diaSel === d}
                   onClick={() => setDiaSel(diaSel === d ? null : d)}
@@ -218,6 +238,8 @@ export default function CalendarioTurnos({
                   <span className="num">{Number(d.slice(8, 10))}</span>
                   {ausente ? (
                     <span className="rango">{ABREVIA_AUSENCIA[ausente.tipo]}</span>
+                  ) : delDia.length === 0 && libres.has(d) ? (
+                    <span className="rango">Libre</span>
                   ) : (
                     <>
                       {delDia.slice(0, 2).map((t) => (
@@ -244,7 +266,9 @@ export default function CalendarioTurnos({
                   {ausenciaDe(diaSel)!.motivo && ` · ${ausenciaDe(diaSel)!.motivo}`}
                 </p>
               ) : turnosSel.length === 0 ? (
-                <p className="suave pequeno">Día libre</p>
+                <p className="suave pequeno">
+                  {libres.has(diaSel) ? 'Día libre' : 'Sin planificar todavía'}
+                </p>
               ) : (
                 turnosSel.map((t) => (
                   <div key={t.id} className="fila entre">

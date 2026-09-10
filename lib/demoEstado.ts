@@ -6,6 +6,7 @@
  */
 import {
   AUSENCIAS_SOLICITABLES,
+  DIAS_SEMANA,
   SIGUIENTES,
   TZ,
   type Rol,
@@ -22,7 +23,7 @@ import {
   PERFILES,
   TURNOS,
 } from './demo'
-import { fechaLocal, horaAMinutos } from './fechas'
+import { diasEntre, fechaLocal, horaAMinutos, inicioSemana, sumarDias } from './fechas'
 import { accesoDeNombre, nombreValido, usuarioDeNombre } from './usuario'
 import { distanciaM } from './geo'
 import { minutosTurno } from './jornada'
@@ -725,6 +726,142 @@ export function guardarParteDemo(
 }
 
 // --- Turnos -----------------------------------------------------------------
+
+/**
+ * Guarda la semana entera. Reproduce `guardarSemana`: mismas validaciones del
+ * horario partido y el mismo reemplazo en bloque de los siete días.
+ */
+export function guardarSemanaDemo(
+  e: EstadoDemo,
+  datos: {
+    empleado_id: string
+    desde: string
+    dias: {
+      modo: 'trabaja' | 'libre' | 'nada'
+      tramos: { inicio: string; fin: string; pausa: number }[]
+    }[]
+  },
+): Resultado {
+  const { empleado_id, desde } = datos
+  if (inicioSemana(desde) !== desde) return { ok: false, error: 'La semana tiene que empezar en lunes' }
+
+  const centro_id = e.perfiles.find((p) => p.id === empleado_id)?.centro_id ?? null
+  const nuevos: Turno[] = []
+
+  for (let i = 0; i < 7; i++) {
+    const fecha = sumarDias(desde, i)
+    const dia = datos.dias[i]
+    if (!dia || dia.modo === 'nada') continue
+
+    if (dia.modo === 'libre') {
+      nuevos.push({
+        id: id('turno'),
+        empleado_id,
+        centro_id,
+        fecha,
+        hora_inicio: '00:00:00',
+        hora_fin: '00:00:00',
+        pausa_min: 0,
+        estado: 'libre',
+        nota: null,
+      })
+      continue
+    }
+
+    const tramos = dia.tramos
+      .filter((t) => t.inicio && t.fin)
+      .sort((a, b) => a.inicio.localeCompare(b.inicio))
+    const nombre = DIAS_SEMANA[(i + 1) % 7]
+
+    for (const t of tramos) {
+      if (t.inicio === t.fin) return { ok: false, error: `${nombre}: un turno empieza y acaba igual` }
+      if (t.pausa < 0 || t.pausa > 480) return { ok: false, error: `${nombre}: pausa no válida` }
+    }
+    if (tramos.length === 2) {
+      if (tramos[0].inicio === tramos[1].inicio) {
+        return { ok: false, error: `${nombre}: los dos turnos empiezan a la misma hora` }
+      }
+      if (tramos[0].fin <= tramos[0].inicio || tramos[0].fin > tramos[1].inicio) {
+        return {
+          ok: false,
+          error: `${nombre}: el primer turno acaba después de que empiece el segundo`,
+        }
+      }
+    }
+
+    for (const t of tramos) {
+      nuevos.push({
+        id: id('turno'),
+        empleado_id,
+        centro_id,
+        fecha,
+        hora_inicio: `${t.inicio}:00`,
+        hora_fin: `${t.fin}:00`,
+        pausa_min: t.pausa,
+        estado: 'planificado',
+        nota: null,
+      })
+    }
+  }
+
+  const hasta = sumarDias(desde, 6)
+  const resto = e.turnos.filter(
+    (t) => !(t.empleado_id === empleado_id && t.fecha >= desde && t.fecha <= hasta),
+  )
+
+  const diasTrabajo = new Set(nuevos.filter((t) => t.estado === 'planificado').map((t) => t.fecha)).size
+  const libres = nuevos.filter((t) => t.estado === 'libre').length
+  const trozos = [
+    diasTrabajo > 0 && `${diasTrabajo} ${diasTrabajo === 1 ? 'día' : 'días'} de trabajo`,
+    libres > 0 && `${libres} ${libres === 1 ? 'día libre' : 'días libres'}`,
+  ].filter(Boolean)
+
+  return {
+    ok: true,
+    estado: { ...e, turnos: [...resto, ...nuevos] },
+    mensaje: nuevos.length === 0 ? 'Semana vaciada' : `Semana guardada: ${trozos.join(' y ')}`,
+  }
+}
+
+/** Copia el horario de una semana en otra, reemplazando lo que hubiera. */
+export function copiarSemanaDemo(
+  e: EstadoDemo,
+  empleado_id: string,
+  origen: string,
+  destino: string,
+): Resultado {
+  if (origen === destino) return { ok: false, error: 'Esa es la misma semana' }
+
+  const suyos = e.turnos.filter(
+    (t) =>
+      t.empleado_id === empleado_id &&
+      t.fecha >= origen &&
+      t.fecha <= sumarDias(origen, 6) &&
+      t.estado !== 'cancelado',
+  )
+  if (suyos.length === 0) return { ok: false, error: 'La semana que quieres copiar está vacía' }
+
+  const desplazamiento = diasEntre(origen, destino) - 1
+  const resto = e.turnos.filter(
+    (t) => !(t.empleado_id === empleado_id && t.fecha >= destino && t.fecha <= sumarDias(destino, 6)),
+  )
+
+  return {
+    ok: true,
+    estado: {
+      ...e,
+      turnos: [
+        ...resto,
+        ...suyos.map((t) => ({
+          ...t,
+          id: id('turno'),
+          fecha: sumarDias(t.fecha, desplazamiento),
+        })),
+      ],
+    },
+    mensaje: 'Semana copiada',
+  }
+}
 
 export function guardarPlantillaDemo(
   e: EstadoDemo,

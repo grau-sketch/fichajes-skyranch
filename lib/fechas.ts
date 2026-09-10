@@ -72,6 +72,48 @@ export function finSemana(fecha: string): string {
   return sumarDias(inicioSemana(fecha), 6)
 }
 
+/**
+ * Número de semana ISO 8601: la semana empieza en lunes y la semana 1 es la
+ * que contiene el primer jueves del año. Es el número con el que la gente
+ * habla ("la semana 37"), y el que usa el planificador.
+ */
+export function numeroSemanaISO(fecha: string): number {
+  const [y, m, d] = fecha.split('-').map(Number)
+  const t = new Date(Date.UTC(y, m - 1, d))
+  // Al jueves de esa semana: así el año que manda es el del jueves.
+  const dow = t.getUTCDay() || 7
+  t.setUTCDate(t.getUTCDate() + 4 - dow)
+  const enero1 = Date.UTC(t.getUTCFullYear(), 0, 1)
+  return Math.ceil(((t.getTime() - enero1) / 86400000 + 1) / 7)
+}
+
+/** Año al que pertenece la semana ISO (puede no ser el del día). */
+export function anioSemanaISO(fecha: string): number {
+  const [y, m, d] = fecha.split('-').map(Number)
+  const t = new Date(Date.UTC(y, m - 1, d))
+  const dow = t.getUTCDay() || 7
+  t.setUTCDate(t.getUTCDate() + 4 - dow)
+  return t.getUTCFullYear()
+}
+
+/** 'del 7 al 13 de septiembre' — el rango de la semana, en una línea. */
+export function rangoSemanaTxt(inicio: string, tz: string = TZ): string {
+  const fin = sumarDias(inicio, 6)
+  const dia = (f: string) => new Date(`${f}T12:00:00Z`)
+  const mismoMes = inicio.slice(0, 7) === fin.slice(0, 7)
+  const desde = new Intl.DateTimeFormat('es-ES', {
+    timeZone: tz,
+    day: 'numeric',
+    ...(mismoMes ? {} : { month: 'short' }),
+  }).format(dia(inicio))
+  const hasta = new Intl.DateTimeFormat('es-ES', {
+    timeZone: tz,
+    day: 'numeric',
+    month: 'long',
+  }).format(dia(fin))
+  return `del ${desde} al ${hasta}`
+}
+
 export function inicioMes(fecha: string): string {
   return `${fecha.slice(0, 7)}-01`
 }

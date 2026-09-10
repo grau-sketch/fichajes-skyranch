@@ -4,7 +4,14 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Rol, TipoAusencia, TipoFichaje } from '@/lib/constants'
-import { AUSENCIAS_SOLICITABLES, ROLES, TIPOS_AUSENCIA, TIPOS_FICHAJE } from '@/lib/constants'
+import {
+  AUSENCIAS_SOLICITABLES,
+  DIAS_SEMANA,
+  ROLES,
+  TIPOS_AUSENCIA,
+  TIPOS_FICHAJE,
+} from '@/lib/constants'
+import { diasEntre, inicioSemana, sumarDias } from '@/lib/fechas'
 import { geocodificar } from '@/lib/geocodificar'
 import { notificarAvisosDeFichaje } from '@/lib/notificar'
 import { requerirGestor, requerirPerfil } from '@/lib/sesion'
@@ -460,6 +467,172 @@ export async function cancelarTurno(_previo: unknown, form: FormData) {
   revalidatePath('/admin/turnos')
   revalidatePath('/turnos')
   return { ok: 'Turno cancelado' }
+}
+
+/**
+ * Guarda la semana entera de una persona de una vez.
+ *
+ * Cada día puede ser: dos turnos (el horario partido es lo normal en la finca),
+ * uno, un día libre marcado a mano, o nada. El día libre se guarda como una
+ * fila con estado 'libre': así el trabajador lo ve en su calendario y la app no
+ * espera ningún fichaje.
+ *
+ * La semana se reemplaza en bloque: se borran los turnos que hubiera en esos
+ * siete días y se escriben los nuevos. Un turno es la previsión, no el registro
+ * legal — ese es `fichajes`, que nunca se borra.
+ */
+export async function guardarSemana(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const empleado_id = String(form.get('empleado_id') ?? '')
+  const desde = String(form.get('desde') ?? '')
+  if (!empleado_id || !/^\d{4}-\d{2}-\d{2}$/.test(desde)) return { error: 'Faltan la persona o la semana' }
+  if (inicioSemana(desde) !== desde) return { error: 'La semana tiene que empezar en lunes' }
+
+  const hhmm = /^\d{2}:\d{2}$/
+  type Fila = { fecha: string; hora_inicio: string; hora_fin: string; pausa_min: number; estado: 'planificado' | 'libre' }
+  const filas: Fila[] = []
+
+  for (let i = 0; i < 7; i++) {
+    const fecha = sumarDias(desde, i)
+    const modo = String(form.get(`d${i}`) ?? 'nada')
+
+    if (modo === 'libre') {
+      filas.push({ fecha, hora_inicio: '00:00', hora_fin: '00:00', pausa_min: 0, estado: 'libre' })
+      continue
+    }
+    if (modo !== 'trabaja') continue
+
+    const tramos: { inicio: string; fin: string; pausa: number }[] = []
+    for (const n of [1, 2]) {
+      const inicio = String(form.get(`d${i}_${n}i`) ?? '').slice(0, 5)
+      const fin = String(form.get(`d${i}_${n}f`) ?? '').slice(0, 5)
+      const pausa = Number(form.get(`d${i}_${n}p`) ?? 0)
+      if (!inicio && !fin) continue
+      if (!hhmm.test(inicio) || !hhmm.test(fin)) {
+        return { error: `${DIAS_SEMANA[(i + 1) % 7]}: el turno ${n} necesita entrada y salida` }
+      }
+      if (inicio === fin) {
+        return { error: `${DIAS_SEMANA[(i + 1) % 7]}: el turno ${n} empieza y acaba a la misma hora` }
+      }
+      if (Number.isNaN(pausa) || pausa < 0 || pausa > 480) {
+        return { error: `${DIAS_SEMANA[(i + 1) % 7]}: la pausa del turno ${n} no es válida` }
+      }
+      tramos.push({ inicio, fin, pausa })
+    }
+
+    if (tramos.length === 0) continue
+
+    tramos.sort((a, b) => a.inicio.localeCompare(b.inicio))
+    if (tramos.length === 2) {
+      if (tramos[0].inicio === tramos[1].inicio) {
+        return { error: `${DIAS_SEMANA[(i + 1) % 7]}: los dos turnos empiezan a la misma hora` }
+      }
+      // El primer tramo de un día partido no puede cruzar medianoche ni pisar
+      // al segundo: si se solapan, las horas se contarían dos veces.
+      if (tramos[0].fin <= tramos[0].inicio || tramos[0].fin > tramos[1].inicio) {
+        return {
+          error: `${DIAS_SEMANA[(i + 1) % 7]}: el primer turno acaba después de que empiece el segundo`,
+        }
+      }
+    }
+
+    for (const tr of tramos) {
+      filas.push({
+        fecha,
+        hora_inicio: tr.inicio,
+        hora_fin: tr.fin,
+        pausa_min: tr.pausa,
+        estado: 'planificado',
+      })
+    }
+  }
+
+  const supabase = createClient()
+  const { data: emp } = await supabase
+    .from('perfiles')
+    .select('centro_id')
+    .eq('id', empleado_id)
+    .single()
+
+  const hasta = sumarDias(desde, 6)
+  const { error: errorBorrado } = await supabase
+    .from('turnos')
+    .delete()
+    .eq('empleado_id', empleado_id)
+    .gte('fecha', desde)
+    .lte('fecha', hasta)
+  if (errorBorrado) return { error: porQueNoGuarda(errorBorrado) }
+
+  if (filas.length === 0) return { ok: 'Semana vaciada' }
+
+  const { error } = await supabase
+    .from('turnos')
+    .insert(filas.map((fl) => ({ ...fl, empleado_id, centro_id: emp?.centro_id ?? null })))
+  if (error) return { error: porQueNoGuarda(error) }
+
+  revalidatePath('/admin/turnos')
+  revalidatePath('/admin')
+  revalidatePath('/turnos')
+
+  const dias = new Set(filas.filter((fl) => fl.estado === 'planificado').map((fl) => fl.fecha)).size
+  const libres = filas.filter((fl) => fl.estado === 'libre').length
+  const trozos = [
+    dias > 0 && `${dias} ${dias === 1 ? 'día' : 'días'} de trabajo`,
+    libres > 0 && `${libres} ${libres === 1 ? 'día libre' : 'días libres'}`,
+  ].filter(Boolean)
+  return { ok: `Semana guardada: ${trozos.join(' y ')}` }
+}
+
+/** Copia el horario de una semana en otra, reemplazando lo que hubiera. */
+export async function copiarSemana(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const empleado_id = String(form.get('empleado_id') ?? '')
+  const origen = String(form.get('origen') ?? '')
+  const destino = String(form.get('destino') ?? '')
+  if (!empleado_id || !origen || !destino) return { error: 'Faltan datos para copiar' }
+  if (inicioSemana(origen) !== origen || inicioSemana(destino) !== destino) {
+    return { error: 'Las semanas tienen que empezar en lunes' }
+  }
+  if (origen === destino) return { error: 'Esa es la misma semana' }
+
+  const supabase = createClient()
+  const { data, error: errorLectura } = await supabase
+    .from('turnos')
+    .select('fecha, hora_inicio, hora_fin, pausa_min, estado, centro_id')
+    .eq('empleado_id', empleado_id)
+    .gte('fecha', origen)
+    .lte('fecha', sumarDias(origen, 6))
+  if (errorLectura) return { error: porQueNoGuarda(errorLectura) }
+
+  const origenes = (data ?? []).filter((t) => t.estado !== 'cancelado')
+  if (origenes.length === 0) return { error: 'La semana que quieres copiar está vacía' }
+
+  const desplazamiento = diasEntre(origen, destino) - 1
+  const { error: errorBorrado } = await supabase
+    .from('turnos')
+    .delete()
+    .eq('empleado_id', empleado_id)
+    .gte('fecha', destino)
+    .lte('fecha', sumarDias(destino, 6))
+  if (errorBorrado) return { error: porQueNoGuarda(errorBorrado) }
+
+  const { error } = await supabase.from('turnos').insert(
+    origenes.map((t) => ({
+      empleado_id,
+      centro_id: t.centro_id,
+      fecha: sumarDias(t.fecha, desplazamiento),
+      hora_inicio: t.hora_inicio,
+      hora_fin: t.hora_fin,
+      pausa_min: t.pausa_min,
+      estado: t.estado,
+    })),
+  )
+  if (error) return { error: porQueNoGuarda(error) }
+
+  revalidatePath('/admin/turnos')
+  revalidatePath('/admin')
+  revalidatePath('/turnos')
+  return { ok: 'Semana copiada' }
 }
 
 // --- Alta de trabajadores (solo admin) --------------------------------------

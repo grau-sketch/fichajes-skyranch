@@ -1,4 +1,10 @@
-import type { EstadoAusencia, Rol, TipoAusencia, TipoFichaje } from './constants'
+import type {
+  EstadoAusencia,
+  EstadoTurno,
+  Rol,
+  TipoAusencia,
+  TipoFichaje,
+} from './constants'
 
 export type Centro = {
   id: string
@@ -57,7 +63,8 @@ export type Turno = {
   hora_inicio: string
   hora_fin: string
   pausa_min: number
-  estado: 'planificado' | 'confirmado' | 'cancelado'
+  /** 'libre' es un día de descanso planificado, no un turno de trabajo. */
+  estado: EstadoTurno
   nota: string | null
 }
 

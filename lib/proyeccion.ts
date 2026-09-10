@@ -1,7 +1,7 @@
 import { TZ } from './constants'
 import { diasAusentes } from './ausencias'
 import { diasEntre, finTurno } from './fechas'
-import { minutosTurno, turnosSinFichar, type Jornada } from './jornada'
+import { minutosTurno, turnosDeTrabajo, turnosSinFichar, type Jornada } from './jornada'
 import type { Ausencia, Turno } from './types'
 
 export type Proyeccion = {
@@ -58,7 +58,8 @@ export function proyectar(opciones: {
 
   const enRango = <T extends { fecha: string }>(x: T) => x.fecha >= desde && x.fecha <= hasta
   const js = jornadas.filter(enRango)
-  const ts = turnos.filter((t) => enRango(t) && t.estado !== 'cancelado')
+  // Los días libres no son turnos: no suman objetivo ni quedan pendientes.
+  const ts = turnosDeTrabajo(turnos.filter(enRango))
 
   const ausentes = diasAusentes(opciones.ausencias ?? [], desde, hasta)
   const objetivo_min = objetivoPeriodoMin(horasSemana, desde, hasta, ausentes.size)

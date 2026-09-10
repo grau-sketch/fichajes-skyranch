@@ -155,6 +155,14 @@ export const TZ = 'Europe/Madrid'
 /** Años de conservación obligatoria del registro (art. 34.9 ET). */
 export const ANIOS_CONSERVACION = 4
 
+/**
+ * Estados de un turno. 'libre' es el día de descanso planificado: se guarda
+ * como una fila del día para que el trabajador lo vea y para que la app no
+ * espere ningún fichaje, pero no es trabajo — no suma minutos.
+ */
+export const ESTADOS_TURNO = ['planificado', 'confirmado', 'cancelado', 'libre'] as const
+export type EstadoTurno = (typeof ESTADOS_TURNO)[number]
+
 export const DIAS_SEMANA = [
   'Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado',
 ] as const

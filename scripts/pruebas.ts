@@ -1,12 +1,23 @@
 /* Pruebas de la lógica de cálculo. No necesita base de datos.
    Ejecutar:  bun run scripts/pruebas.ts                                  */
 
-import { finTurno, formatHoras, formatMinutos, inicioSemana, instanteLocal } from '../lib/fechas'
+import {
+  anioSemanaISO,
+  finTurno,
+  formatHoras,
+  formatMinutos,
+  inicioSemana,
+  instanteLocal,
+  numeroSemanaISO,
+  rangoSemanaTxt,
+} from '../lib/fechas'
 import {
   agruparJornadas,
   desviosDelDia,
+  esDiaLibre,
   marcarDesvios,
   minutosTurno,
+  turnosDeTrabajo,
   turnosSinFichar,
 } from '../lib/jornada'
 import { objetivoPeriodoMin, proyectar } from '../lib/proyeccion'
@@ -54,19 +65,28 @@ function f(tipo: Fichaje['tipo'], ts: string, extra: Partial<Fichaje> = {}): Fic
   }
 }
 
-function t(fecha: string, hora_inicio: string, hora_fin: string, pausa_min = 0): Turno {
+function t(
+  fecha: string,
+  hora_inicio: string,
+  hora_fin: string,
+  pausa_min = 0,
+  estado: Turno['estado'] = 'planificado',
+): Turno {
   return {
-    id: `t${fecha}${hora_inicio}`,
+    id: `t${fecha}${hora_inicio}${estado}`,
     empleado_id: 'e1',
     centro_id: 'c1',
     fecha,
     hora_inicio,
     hora_fin,
     pausa_min,
-    estado: 'planificado',
+    estado,
     nota: null,
   }
 }
+
+/** Día marcado como libre: una fila del día con hora_inicio = hora_fin. */
+const libre = (fecha: string) => t(fecha, '00:00', '00:00', 0, 'libre')
 
 const TZ = 'Europe/Madrid'
 
@@ -474,6 +494,102 @@ console.log('\nDesvíos sobre el horario planificado')
     TZ,
   )
   comprobar('la anomalía llega a la jornada', marcadas[0].anomalias, ['entrada_tarde'])
+}
+
+console.log('\nSemana ISO')
+{
+  comprobar('7 sep 2026 es la semana 37', numeroSemanaISO('2026-09-07'), 37)
+  comprobar('el domingo cierra la misma semana', numeroSemanaISO('2026-09-13'), 37)
+  comprobar('el lunes siguiente ya es la 38', numeroSemanaISO('2026-09-14'), 38)
+  // 1 de enero de 2027 es viernes: pertenece a la semana 53 de 2026.
+  comprobar('1 ene 2027 cae en la semana 53', numeroSemanaISO('2027-01-01'), 53)
+  comprobar('y su año ISO es 2026', anioSemanaISO('2027-01-01'), 2026)
+  comprobar('rango dentro del mes', rangoSemanaTxt('2026-09-07'), 'del 7 al 13 de septiembre')
+  comprobar('rango a caballo de dos meses', rangoSemanaTxt('2026-09-28'), 'del 28 sept al 4 de octubre')
+}
+
+console.log('\nHorario partido')
+{
+  const manana = t('2026-09-07', '09:00', '14:00')
+  const tarde = t('2026-09-07', '17:00', '20:00')
+  comprobar('la mañana son 5 h', minutosTurno(manana), 300)
+  comprobar('el día partido son 8 h', minutosTurno(manana) + minutosTurno(tarde), 480)
+
+  const ahora = new Date('2026-09-09T06:00:00Z')
+  // Ficha 09:05–14:00 y 17:10–20:00 (Madrid = UTC+2 en septiembre).
+  const jornadas = agruparJornadas(
+    [
+      f('entrada', '2026-09-07T07:05:00Z'),
+      f('salida', '2026-09-07T12:00:00Z'),
+      f('entrada', '2026-09-07T15:10:00Z'),
+      f('salida', '2026-09-07T18:00:00Z'),
+    ],
+    ahora,
+    TZ,
+  )
+  comprobar('dos jornadas ese día', jornadas.length, 2)
+  comprobar(
+    'cumpliendo el partido no hay desvío',
+    desviosDelDia(jornadas, [manana, tarde], 10, TZ).length,
+    0,
+  )
+
+  // Se salta la tarde: el cierre del día queda 6 h antes de las 20:00.
+  const soloManana = agruparJornadas(
+    [f('entrada', '2026-09-07T07:05:00Z'), f('salida', '2026-09-07T12:00:00Z')],
+    ahora,
+    TZ,
+  )
+  comprobar(
+    'faltar a la tarde sale como salida antes de hora',
+    desviosDelDia(soloManana, [manana, tarde], 10, TZ).map((d) => [d.tipo, d.minutos, d.prevista]),
+    [['salida_pronto', 360, '20:00']],
+  )
+
+  // El orden en que vengan los turnos no puede cambiar el resultado.
+  comprobar(
+    'da igual el orden de los turnos',
+    desviosDelDia(soloManana, [tarde, manana], 10, TZ).map((d) => d.prevista),
+    ['20:00'],
+  )
+}
+
+console.log('\nDías libres')
+{
+  const ahora = new Date('2026-09-09T06:00:00Z')
+  const semana = [
+    t('2026-09-07', '09:00', '14:00'),
+    t('2026-09-07', '17:00', '20:00'),
+    libre('2026-09-08'),
+  ]
+  comprobar('el libre no es turno de trabajo', turnosDeTrabajo(semana).length, 2)
+  comprobar('el día libre se reconoce', esDiaLibre([libre('2026-09-08')]), true)
+  comprobar('un día de trabajo no es libre', esDiaLibre([semana[0]]), false)
+  comprobar('un día libre no suma minutos', minutosTurno(libre('2026-09-08')), 0)
+
+  const jornadas = agruparJornadas(
+    [f('entrada', '2026-09-07T07:00:00Z'), f('salida', '2026-09-07T18:00:00Z')],
+    ahora,
+    TZ,
+  )
+  comprobar(
+    'un día libre no queda como turno sin fichar',
+    turnosSinFichar(semana, jornadas, ahora, TZ).map((x) => x.fecha),
+    [],
+  )
+  comprobar('ni genera desvío de horario', desviosDelDia([], [libre('2026-09-08')], 10, TZ).length, 0)
+
+  const p = proyectar({
+    jornadas,
+    turnos: semana,
+    horasSemana: 40,
+    desde: '2026-09-07',
+    hasta: '2026-09-08',
+    ahora,
+    tz: TZ,
+  })
+  comprobar('el objetivo ignora el día libre', p.turnos_pendientes, 0)
+  comprobar('y no cuenta como turno sin fichar', p.turnos_sin_fichar, 0)
 }
 
 console.log(`\n${total - fallos}/${total} comprobaciones correctas`)

@@ -144,6 +144,21 @@ export function resumirJornadas(jornadas: Jornada[]): ResumenJornadas {
   }
 }
 
+/**
+ * Los turnos que son trabajo de verdad. Un turno cancelado no cuenta, y un día
+ * marcado como libre tampoco: es descanso planificado, no una jornada que
+ * esperar. Todo lo que sume horas o eche en falta un fichaje debe filtrar por
+ * aquí — si no, un día libre se lee como incumplimiento.
+ */
+export function turnosDeTrabajo<T extends Pick<Turno, 'estado'>>(turnos: T[]): T[] {
+  return turnos.filter((t) => t.estado !== 'cancelado' && t.estado !== 'libre')
+}
+
+/** El día está marcado como libre. */
+export function esDiaLibre(turnos: Pick<Turno, 'estado'>[]): boolean {
+  return turnos.some((t) => t.estado === 'libre')
+}
+
 /** Minutos planificados de un turno, cruzando medianoche si hace falta. */
 export function minutosTurno(t: Pick<Turno, 'hora_inicio' | 'hora_fin' | 'pausa_min'>): number {
   const ini = horaAMinutos(t.hora_inicio)
@@ -165,9 +180,8 @@ export function turnosSinFichar(
   diasAusentes: ReadonlySet<string> = new Set(),
 ): Turno[] {
   const conFichaje = new Set(jornadas.map((j) => j.fecha))
-  return turnos.filter(
+  return turnosDeTrabajo(turnos).filter(
     (t) =>
-      t.estado !== 'cancelado' &&
       finTurno(t.fecha, t.hora_inicio, t.hora_fin, tz) < ahora &&
       !conFichaje.has(t.fecha) &&
       !diasAusentes.has(t.fecha),
@@ -177,9 +191,9 @@ export function turnosSinFichar(
 /** El turno de hoy que toca ahora (o el siguiente de hoy). */
 export function turnoDeHoy(turnos: Turno[], tz: string = TZ): Turno | null {
   const hoy = hoyLocal(tz)
-  const deHoy = turnos
-    .filter((t) => t.fecha === hoy && t.estado !== 'cancelado')
-    .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio))
+  const deHoy = turnosDeTrabajo(turnos.filter((t) => t.fecha === hoy)).sort((a, b) =>
+    a.hora_inicio.localeCompare(b.hora_inicio),
+  )
   return deHoy[0] ?? null
 }
 
@@ -228,9 +242,24 @@ export function desviosDelDia(
   tolerancia: number = TOLERANCIA_DESVIO_MIN,
   tz: string = TZ,
 ): Desvio[] {
-  const porDia = new Map<string, Turno>()
-  for (const t of turnos) {
-    if (t.estado !== 'cancelado') porDia.set(t.fecha, t)
+  // Un día puede tener varios turnos: el horario partido es lo normal aquí.
+  // Se compara el arranque del día con el primer turno y el cierre con el
+  // último; los huecos de en medio no se juzgan, porque entre turno y turno lo
+  // esperado es justamente que no haya nadie fichado.
+  const porDia = new Map<string, { inicio: Turno; fin: Turno }>()
+  for (const t of turnosDeTrabajo(turnos)) {
+    const previo = porDia.get(t.fecha)
+    if (!previo) {
+      porDia.set(t.fecha, { inicio: t, fin: t })
+      continue
+    }
+    porDia.set(t.fecha, {
+      inicio: t.hora_inicio < previo.inicio.hora_inicio ? t : previo.inicio,
+      fin: finTurno(t.fecha, t.hora_inicio, t.hora_fin, tz) >
+           finTurno(previo.fin.fecha, previo.fin.hora_inicio, previo.fin.hora_fin, tz)
+        ? t
+        : previo.fin,
+    })
   }
 
   const fuera: Desvio[] = []
@@ -239,27 +268,27 @@ export function desviosDelDia(
     if (!turno) continue
 
     if (dia.entrada) {
-      const previsto = instanteLocal(turno.fecha, turno.hora_inicio, tz).getTime()
+      const previsto = instanteLocal(fecha, turno.inicio.hora_inicio, tz).getTime()
       const min = Math.round((new Date(dia.entrada).getTime() - previsto) / 60000)
       if (Math.abs(min) > tolerancia) {
         fuera.push({
           fecha,
           tipo: min > 0 ? 'entrada_tarde' : 'entrada_pronto',
           minutos: Math.abs(min),
-          prevista: turno.hora_inicio.slice(0, 5),
+          prevista: turno.inicio.hora_inicio.slice(0, 5),
         })
       }
     }
 
     if (dia.salida && !dia.abierta) {
-      const previsto = finTurno(turno.fecha, turno.hora_inicio, turno.hora_fin, tz).getTime()
+      const previsto = finTurno(fecha, turno.fin.hora_inicio, turno.fin.hora_fin, tz).getTime()
       const min = Math.round((new Date(dia.salida).getTime() - previsto) / 60000)
       if (Math.abs(min) > tolerancia) {
         fuera.push({
           fecha,
           tipo: min > 0 ? 'salida_tarde' : 'salida_pronto',
           minutos: Math.abs(min),
-          prevista: turno.hora_fin.slice(0, 5),
+          prevista: turno.fin.hora_fin.slice(0, 5),
         })
       }
     }

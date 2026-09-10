@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import AvisoBanner from '@/components/AvisoBanner'
+import BotonSesion from '@/components/BotonSesion'
 import Marca from '@/components/Marca'
 import type { Aviso } from '@/lib/types'
 
@@ -127,6 +128,7 @@ export default function ConsolaAdmin({
 
         <div className="pie">
           <p className="mini suave truncar">{nombre}</p>
+          <p className="mini suave">{esAdmin ? 'Administrador' : 'Encargado'}</p>
         </div>
       </aside>
 
@@ -184,6 +186,14 @@ export default function ConsolaAdmin({
 
         {children}
       </div>
+
+      {/* La consola no lleva Cabecera, así que salir vive aquí. */}
+      <BotonSesion
+        nombre={nombre}
+        rol={esAdmin ? 'Administrador' : 'Encargado'}
+        /* En la demo no hay sesión de verdad que cerrar. */
+        soloLectura={base === '/demo'}
+      />
     </div>
   )
 }

@@ -121,6 +121,33 @@ Tipos de fichaje: `entrada → pausa_inicio ⇄ pausa_fin → salida`.
   con `instanteLocal()` / `finTurno()` de `lib/fechas.ts`, que ya manejan los
   cambios de hora. **No uses `new Date('YYYY-MM-DDTHH:MM')`** para horas locales.
 
+## Turnos: horario partido y días libres
+En la finca **el horario partido es lo normal**, así que un día son dos turnos,
+no uno con una pausa larga en medio. El modelo ya lo permitía —
+`unique (empleado_id, fecha, hora_inicio)` — y lo que faltaba era la pantalla.
+
+- **`/admin/turnos` planifica la semana entera de una vez**
+  (`components/PlanificadorSemana.tsx`, que comparten la consola y la demo).
+  Cada día es «Trabaja» (hasta dos tramos), «Libre» o nada. Se navega semana a
+  semana por número ISO (`numeroSemanaISO`, `rangoSemanaTxt`), no con una lista
+  larga de fechas.
+- **`guardarSemana` reemplaza la semana en bloque**: borra los siete días y
+  escribe lo nuevo. Se puede porque un turno es la previsión; el registro legal
+  es `fichajes`, que nunca se borra. `avisos.turno_id` va con `on delete
+  cascade`, así que los avisos de los turnos que desaparecen se van con ellos.
+- **Un día libre es una fila de `turnos` con `estado = 'libre'`** y
+  `hora_inicio = hora_fin`, única por día. Así el trabajador lo ve en su
+  calendario y se distingue de un día «sin planificar», que no es lo mismo para
+  quien lo lee. **No suma horas y no espera ningún fichaje**: todo lo que cuente
+  turnos tiene que filtrar con `turnosDeTrabajo()` de `lib/jornada.ts`. Si no,
+  un día de descanso se lee como incumplimiento.
+- **El desvío de horario compara los extremos del día**: la primera entrada
+  contra el turno más temprano y la última salida contra el que acaba más
+  tarde. El hueco de en medio no se juzga, porque entre turno y turno lo
+  esperado es justamente que no haya nadie fichado.
+- El patrón semanal (`plantillas_turno` + `generar_turnos`) sigue ahí, plegado
+  al final de la página. Con «copiar la semana anterior» casi nunca hace falta.
+
 ## Ficha de una persona
 `/admin/personas/[id]`, que se abre pinchando su fila en Equipo. La
 presentación está en `components/FichaPersona.tsx` y la comparten la consola
@@ -182,7 +209,9 @@ consultas que necesita la lateral (avisos sin leer, ausencias pendientes) se
 hacen en el layout, no en cada página.
 
 - Las páginas de `/admin` **no** ponen `<Cabecera>`: el título lo pone la
-  consola a partir de la ruta.
+  consola a partir de la ruta. Como `Cabecera` era donde vivía el botón de
+  salir, la consola monta `components/BotonSesion.tsx` fijo abajo a la derecha
+  — cuenta abierta y cerrar sesión. En la demo sale en modo informativo.
 - `.solo-movil` y `.solo-escritorio` esconden lo que sobra en cada tamaño: en
   escritorio los avisos viven en la campana y los accesos en la lateral, así
   que sus versiones en línea se ocultan.
