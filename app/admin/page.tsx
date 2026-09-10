@@ -47,7 +47,10 @@ export default async function Admin() {
       .gte('hasta', sumarDias(hoy, -1)),
     ])
 
-  const perfiles = (resPerfiles.data ?? []) as Perfil[]
+  // El administrador no ficha, así que no tiene estado ni turnos que mirar:
+  // salía como una persona más «Fuera · sin turno hoy» y descuadraba el
+  // recuento. Un encargado sí ficha y sí sale.
+  const perfiles = ((resPerfiles.data ?? []) as Perfil[]).filter((p) => p.rol !== 'admin')
   const estados = (resEstado.data ?? []) as EstadoActual[]
   const fichajes = (resFichajes.data ?? []) as Fichaje[]
   const turnos = (resTurnos.data ?? []) as Turno[]
