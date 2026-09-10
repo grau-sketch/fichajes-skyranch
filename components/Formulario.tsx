@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
 
 export type Respuesta = { ok?: string; error?: string } | void
@@ -32,6 +33,7 @@ export default function Formulario({
   const [enviando, setEnviando] = useState(false)
   const [msg, setMsg] = useState<{ ok?: string; error?: string } | null>(null)
   const ref = useRef<HTMLFormElement>(null)
+  const router = useRouter()
 
   async function alEnviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault()
@@ -43,6 +45,10 @@ export default function Formulario({
       const respuesta = demo ? demo(datos) : accion ? await accion(null, datos) : undefined
       setMsg(respuesta ?? null)
       if (respuesta && !respuesta.error && limpiarAlEnviar) ref.current?.reset()
+      // Sin esto la pantalla sigue mostrando lo de antes: `revalidatePath`
+      // limpia la caché del servidor, pero nadie le pide a esta página que se
+      // vuelva a pintar, y el cambio parecía no haberse guardado.
+      if (!demo && respuesta && !respuesta.error) router.refresh()
     } catch {
       setMsg({ error: 'Sin conexión o error del servidor' })
     } finally {

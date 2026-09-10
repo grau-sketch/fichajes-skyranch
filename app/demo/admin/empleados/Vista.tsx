@@ -1,15 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import BuscadorDireccion from '@/components/BuscadorDireccion'
 import CampoPassword from '@/components/CampoPassword'
 import { useDemo } from '@/components/DemoProvider'
 import Formulario from '@/components/Formulario'
 import { ROLES, type Rol } from '@/lib/constants'
-import {
-  crearEmpleadoDemo,
-  guardarCentroDemo,
-  guardarEmpleadoDemo,
-} from '@/lib/demoEstado'
+import { crearEmpleadoDemo, guardarCentroDemo } from '@/lib/demoEstado'
 
 const ETIQUETA_ROL = {
   admin: 'Administrador',
@@ -181,101 +178,22 @@ export default function Vista() {
             <h2>Plantilla</h2>
             <span className="mini suave">{perfiles.length}</span>
           </header>
+          <p className="mini suave" style={{ marginBottom: 10 }}>
+            Pincha en una persona para abrir su ficha: nombre, datos, rol, centro, jornada,
+            vacaciones y contraseña.
+          </p>
           <div className="lista">
             {perfiles.map((p) => (
-              <details key={p.id} style={{ padding: '12px 0' }}>
-                <summary style={{ cursor: 'pointer' }}>
-                  <strong>{p.nombre}</strong>{' '}
-                  <span className="mini suave">
+              <Link key={p.id} className="item pulsable" href={`/demo/admin/personas/${p.id}`}>
+                <div className="crece">
+                  <p style={{ fontWeight: 550 }}>{p.nombre}</p>
+                  <p className="mini suave">
                     {ETIQUETA_ROL[p.rol]} · {p.horas_semana} h
                     {!p.activo && ' · inactivo'}
                     {!p.centro_id && ' · sin centro'}
-                  </span>
-                </summary>
-                <div className="columna" style={{ marginTop: 12, gap: 16 }}>
-                  <Formulario
-                    boton="Guardar"
-                    demo={(form) =>
-                      aplicar((e) =>
-                        guardarEmpleadoDemo(e, {
-                          id: p.id,
-                          rol: String(form.get('rol') ?? p.rol) as Rol,
-                          centro_id: String(form.get('centro_id') ?? ''),
-                          horas_semana: Number(form.get('horas_semana') ?? p.horas_semana),
-                          activo: form.get('activo') === 'on',
-                        }),
-                      )
-                    }
-                  >
-                    <p className="mini suave">Entra escribiendo: {p.nombre}</p>
-                    <div>
-                      <label htmlFor={`rol-${p.id}`}>Rol</label>
-                      <select id={`rol-${p.id}`} name="rol" defaultValue={p.rol}>
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {ETIQUETA_ROL[r]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label htmlFor={`centro-${p.id}`}>Centro</label>
-                      <select id={`centro-${p.id}`} name="centro_id" defaultValue={p.centro_id ?? ''}>
-                        <option value="">Sin asignar</option>
-                        {centros.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label htmlFor={`horas-${p.id}`}>Horas por semana</label>
-                      <input
-                        id={`horas-${p.id}`}
-                        name="horas_semana"
-                        type="number"
-                        step="0.5"
-                        min={0}
-                        max={60}
-                        defaultValue={p.horas_semana}
-                      />
-                    </div>
-                    <label className="fila" style={{ gap: 8 }}>
-                      <input
-                        type="checkbox"
-                        name="activo"
-                        defaultChecked={p.activo}
-                        style={{ width: 20, height: 20, minHeight: 20 }}
-                      />
-                      Cuenta activa
-                    </label>
-                  </Formulario>
-
-                  <details>
-                    <summary className="mini suave" style={{ cursor: 'pointer' }}>
-                      Ha perdido la contraseña
-                    </summary>
-                    <div style={{ marginTop: 10 }}>
-                      <Formulario
-                        boton="Cambiar contraseña"
-                        botonClase="btn"
-                        demo={(form) =>
-                          String(form.get('password') ?? '').length < 8
-                            ? { error: 'La contraseña necesita al menos 8 caracteres' }
-                            : { ok: 'Contraseña cambiada. Pásasela a la persona.' }
-                        }
-                      >
-                        <CampoPassword
-                          id={`pw-${p.id}`}
-                          etiqueta="Contraseña nueva"
-                          ayuda="La anterior deja de funcionar en cuanto guardes."
-                        />
-                      </Formulario>
-                    </div>
-                  </details>
+                  </p>
                 </div>
-              </details>
+              </Link>
             ))}
           </div>
         </div>

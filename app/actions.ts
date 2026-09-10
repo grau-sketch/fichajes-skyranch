@@ -532,6 +532,26 @@ export async function crearEmpleado(_previo: unknown, form: FormData) {
 }
 
 /** Cambia la contraseña de un trabajador (para cuando la pierde). */
+/**
+ * Traduce un error de Postgres a algo accionable. Se tragaba el mensaje real y
+ * un "No se ha podido guardar" a secas no dice si falta una columna, si RLS ha
+ * bloqueado la fila o si el dato no pasa un check.
+ */
+function porQueNoGuarda(error: { message?: string; code?: string } | null): string {
+  const m = error?.message ?? ''
+  const falta = m.match(/column "?([a-z_]+)"? of relation "?([a-z_]+)"? does not exist/i)
+  if (falta) {
+    return `A la base de datos le falta la columna "${falta[1]}" en ${falta[2]}. Pasa db/schema.sql por el editor SQL de Supabase y vuelve a intentarlo.`
+  }
+  if (/does not exist/i.test(m)) {
+    return `La base de datos no está al día: ${m}. Pasa db/schema.sql por el editor SQL de Supabase.`
+  }
+  if (error?.code === '42501' || /row-level security|policy/i.test(m)) {
+    return 'La base de datos ha rechazado el cambio por permisos. Comprueba que tu perfil tiene rol admin.'
+  }
+  return m ? `No se ha podido guardar: ${m}` : 'No se ha podido guardar'
+}
+
 export async function restablecerPassword(_previo: unknown, form: FormData) {
   const gestor = await requerirGestor()
   if (gestor.rol !== 'admin') return { error: 'Solo un administrador puede hacer esto' }
@@ -624,7 +644,9 @@ export async function guardarPersona(_previo: unknown, form: FormData) {
     }
   }
 
-  const { error } = await supabase
+  // `select()` devuelve las filas tocadas: si RLS deja el update en cero filas
+  // Postgres no da error, y antes esto respondía "Guardado" sin guardar nada.
+  const { data: guardado, error } = await supabase
     .from('perfiles')
     .update({
       nombre,
@@ -638,8 +660,15 @@ export async function guardarPersona(_previo: unknown, form: FormData) {
       activo,
     })
     .eq('id', id)
+    .select('id')
 
-  if (error) return { error: 'No se ha podido guardar' }
+  if (error) return { error: porQueNoGuarda(error) }
+  if (!guardado || guardado.length === 0) {
+    return {
+      error:
+        'La base de datos no ha cambiado ninguna fila. Suele ser que tu perfil no tiene rol admin en la tabla perfiles.',
+    }
+  }
 
   revalidatePath('/admin')
   revalidatePath(`/admin/personas/${id}`)
@@ -687,13 +716,22 @@ export async function guardarEmpleado(_previo: unknown, form: FormData) {
   }
 
   const supabase = createClient()
-  const { error } = await supabase
+  const { data: guardado, error } = await supabase
     .from('perfiles')
     .update({ centro_id: centro_id || null, rol, horas_semana, activo })
     .eq('id', id)
-  if (error) return { error: 'No se ha podido guardar' }
+    .select('id')
+  if (error) return { error: porQueNoGuarda(error) }
+  if (!guardado || guardado.length === 0) {
+    return {
+      error:
+        'La base de datos no ha cambiado ninguna fila. Suele ser que tu perfil no tiene rol admin en la tabla perfiles.',
+    }
+  }
 
   revalidatePath('/admin/empleados')
+  revalidatePath('/admin')
+  revalidatePath(`/admin/personas/${id}`)
   return { ok: 'Empleado actualizado' }
 }
 
