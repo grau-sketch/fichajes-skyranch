@@ -7,7 +7,7 @@ import PedirAusencia from '@/components/PedirAusencia'
 import { resumenVacaciones } from '@/lib/ausencias'
 import { DIAS_VACACIONES_MINIMO, type TipoAusencia } from '@/lib/constants'
 import { HOY } from '@/lib/demo'
-import { decidirAusenciaDemo, solicitarAusenciaDemo } from '@/lib/demoEstado'
+import { decidirAusenciaDemo, editarAusenciaDemo, solicitarAusenciaDemo } from '@/lib/demoEstado'
 
 export default function Vista() {
   const { estado, aplicar } = useDemo()
@@ -30,6 +30,21 @@ export default function Vista() {
           e.admin,
         ),
       ),
+    editar: (form: FormData) =>
+      aplicar((e) =>
+        editarAusenciaDemo(
+          e,
+          {
+            id: String(form.get('id')),
+            tipo: String(form.get('tipo')) as TipoAusencia,
+            desde: String(form.get('desde')),
+            hasta: String(form.get('hasta')),
+            motivo: String(form.get('motivo') ?? ''),
+            nota: String(form.get('nota') ?? ''),
+          },
+          e.admin,
+        ),
+      ),
   }
 
   return (
@@ -48,6 +63,7 @@ export default function Vista() {
               ausencias={pendientes}
               nombrePor={nombrePor}
               puedeDecidir
+              puedeEditar
               demo={decidir}
             />
           )}
@@ -148,6 +164,7 @@ export default function Vista() {
             ausencias={estado.ausencias}
             nombrePor={nombrePor}
             puedeDecidir
+            puedeEditar
             demo={decidir}
           />
         </div>

@@ -242,6 +242,9 @@ function au(
     decidido_por: estado === 'pendiente' ? null : 'carlos',
     decidido_en: estado === 'pendiente' ? null : `${desde}T09:00:00.000Z`,
     nota_decision: null,
+    editado_por: null,
+    editado_en: null,
+    nota_edicion: null,
   }
 }
 

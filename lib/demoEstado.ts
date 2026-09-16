@@ -609,6 +609,9 @@ export function solicitarAusenciaDemo(
     decidido_por: aprobada ? e.admin : null,
     decidido_en: aprobada ? ahora : null,
     nota_decision: null,
+    editado_por: null,
+    editado_en: null,
+    nota_edicion: null,
   }
 
   const avisos = [...e.avisos]
@@ -688,6 +691,78 @@ export function decidirAusenciaDemo(
             ],
     },
     mensaje: etiquetas[estado],
+  }
+}
+
+export function editarAusenciaDemo(
+  e: EstadoDemo,
+  datos: {
+    id: string
+    tipo: TipoAusencia
+    desde: string
+    hasta: string
+    motivo: string
+    nota: string
+  },
+  porId: string,
+): Resultado {
+  const a = e.ausencias.find((x) => x.id === datos.id)
+  if (!a) return { ok: false, error: 'La ausencia no existe' }
+  if (a.estado === 'cancelada') return { ok: false, error: 'No se puede editar una ausencia cancelada' }
+  if (!datos.desde || !datos.hasta) return { ok: false, error: 'Indica las fechas' }
+  if (datos.hasta < datos.desde) {
+    return { ok: false, error: 'La fecha de fin es anterior a la de inicio' }
+  }
+  if (datos.nota.trim().length < 3) {
+    return { ok: false, error: 'Editar una ausencia necesita un motivo' }
+  }
+  if (
+    e.ausencias.some(
+      (x) =>
+        x.id !== datos.id &&
+        x.empleado_id === a.empleado_id &&
+        (x.estado === 'pendiente' || x.estado === 'aprobada') &&
+        x.desde <= datos.hasta &&
+        x.hasta >= datos.desde,
+    )
+  ) {
+    return { ok: false, error: 'Ya hay otra ausencia en esas fechas' }
+  }
+
+  const ahora = new Date().toISOString()
+  return {
+    ok: true,
+    estado: {
+      ...e,
+      ausencias: e.ausencias.map((x) =>
+        x.id === datos.id
+          ? {
+              ...x,
+              tipo: datos.tipo,
+              desde: datos.desde,
+              hasta: datos.hasta,
+              motivo: datos.motivo.trim() || null,
+              editado_por: porId,
+              editado_en: ahora,
+              nota_edicion: datos.nota.trim(),
+            }
+          : x,
+      ),
+      avisos:
+        a.empleado_id === porId
+          ? e.avisos
+          : [
+              avisoPara(
+                a.empleado_id,
+                a.empleado_id,
+                'ausencia_editada',
+                'Se corrigió tu ausencia',
+                `${datos.tipo.replace('_', ' ')} del ${datos.desde} al ${datos.hasta}. Motivo: ${datos.nota.trim()}`,
+              ),
+              ...e.avisos,
+            ],
+    },
+    mensaje: 'Ausencia corregida',
   }
 }
 

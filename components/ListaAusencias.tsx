@@ -1,6 +1,6 @@
 import Formulario from '@/components/Formulario'
-import { decidirAusencia } from '@/app/actions'
-import { ETIQUETA_AUSENCIA, ETIQUETA_ESTADO_AUSENCIA } from '@/lib/constants'
+import { decidirAusencia, editarAusencia } from '@/app/actions'
+import { ETIQUETA_AUSENCIA, TIPOS_AUSENCIA, ETIQUETA_ESTADO_AUSENCIA } from '@/lib/constants'
 import { diasEntre, formatFechaCorta } from '@/lib/fechas'
 import type { Ausencia } from '@/lib/types'
 import VerJustificante from '@/components/VerJustificante'
@@ -14,22 +14,27 @@ const TONO = {
 
 type Manejadores = {
   decidir: (form: FormData) => { ok?: string; error?: string }
+  editar?: (form: FormData) => { ok?: string; error?: string }
 }
 
 /**
  * Ausencias de una o varias personas. `puedeDecidir` la usa el responsable
- * para aprobar o rechazar; el trabajador solo puede cancelar lo pendiente.
+ * (admin o encargado) para aprobar o rechazar; el trabajador solo puede
+ * cancelar lo pendiente. `puedeEditar` es más estrecho: corregir una ausencia
+ * ya decidida es cosa solo del administrador.
  */
 export default function ListaAusencias({
   ausencias,
   nombrePor,
   puedeDecidir = false,
+  puedeEditar = false,
   yo,
   demo,
 }: {
   ausencias: Ausencia[]
   nombrePor?: Record<string, string>
   puedeDecidir?: boolean
+  puedeEditar?: boolean
   /** Id de quien mira, para permitirle cancelar sus solicitudes. */
   yo?: string
   demo?: Manejadores
@@ -66,6 +71,11 @@ export default function ListaAusencias({
             {a.nota_decision && (
               <p className="mini" style={{ color: 'var(--texto-2)' }}>
                 Respuesta: {a.nota_decision}
+              </p>
+            )}
+            {a.nota_edicion && (
+              <p className="mini" style={{ color: 'var(--texto-2)' }}>
+                Corregido: {a.nota_edicion}
               </p>
             )}
             {a.justificante && <VerJustificante ruta={a.justificante} />}
@@ -122,6 +132,70 @@ export default function ListaAusencias({
                 <input type="hidden" name="id" value={a.id} />
                 <input type="hidden" name="estado" value="cancelada" />
               </Formulario>
+            )}
+
+            {puedeEditar && a.estado !== 'cancelada' && (
+              <details className="no-imprimir">
+                <summary className="mini" style={{ cursor: 'pointer' }}>
+                  Editar
+                </summary>
+                <div style={{ marginTop: 10 }}>
+                  <Formulario
+                    accion={editarAusencia}
+                    boton="Guardar corrección"
+                    botonClase="btn mini"
+                    demo={demo?.editar}
+                  >
+                    <input type="hidden" name="id" value={a.id} />
+                    <div>
+                      <label htmlFor={`tipo-${a.id}`}>Tipo</label>
+                      <select id={`tipo-${a.id}`} name="tipo" defaultValue={a.tipo}>
+                        {TIPOS_AUSENCIA.map((t) => (
+                          <option key={t} value={t}>
+                            {ETIQUETA_AUSENCIA[t]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="campos dos">
+                      <div>
+                        <label htmlFor={`desde-${a.id}`}>Desde</label>
+                        <input
+                          id={`desde-${a.id}`}
+                          name="desde"
+                          type="date"
+                          defaultValue={a.desde}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor={`hasta-${a.id}`}>Hasta</label>
+                        <input
+                          id={`hasta-${a.id}`}
+                          name="hasta"
+                          type="date"
+                          defaultValue={a.hasta}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label htmlFor={`motivo-${a.id}`}>Motivo (opcional)</label>
+                      <input id={`motivo-${a.id}`} name="motivo" defaultValue={a.motivo ?? ''} />
+                    </div>
+                    <div>
+                      <label htmlFor={`nota-edicion-${a.id}`}>Por qué se corrige</label>
+                      <input
+                        id={`nota-edicion-${a.id}`}
+                        name="nota"
+                        required
+                        minLength={3}
+                        placeholder="Se registró un día de más por error"
+                      />
+                    </div>
+                  </Formulario>
+                </div>
+              </details>
             )}
           </div>
         )

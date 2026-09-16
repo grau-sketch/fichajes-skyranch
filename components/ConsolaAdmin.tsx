@@ -9,6 +9,12 @@ import Marca from '@/components/Marca'
 import type { Aviso } from '@/lib/types'
 
 const ICONOS = {
+  inicio: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 11.5 12 4l8 7.5" />
+      <path d="M6 10v9.5h12V10" />
+    </svg>
+  ),
   equipo: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
       <circle cx="9" cy="8.5" r="3.2" />
@@ -33,6 +39,15 @@ const ICONOS = {
       <path d="M4 6.5h16v13H4z" />
       <path d="M8 4v3M16 4v3" />
       <path d="M9 13.5l2 2 4-4" />
+    </svg>
+  ),
+  calendario: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+      <path d="M7 3v3.5M17 3v3.5M3.5 10h17" />
+      <circle cx="8.5" cy="14.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="14.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8.5" cy="17.5" r="1" fill="currentColor" stroke="none" />
     </svg>
   ),
   personal: (
@@ -81,10 +96,12 @@ export default function ConsolaAdmin({
   const [abierta, setAbierta] = useState(false)
 
   const gestion: Enlace[] = [
+    { href: `${base}/admin/inicio`, texto: 'Inicio', icono: 'inicio' },
     { href: `${base}/admin`, texto: 'Equipo', icono: 'equipo' },
     { href: `${base}/admin/turnos`, texto: 'Turnos', icono: 'turnos' },
     { href: `${base}/admin/ausencias`, texto: 'Ausencias', icono: 'ausencias', globo: ausenciasPendientes },
     { href: `${base}/admin/informes`, texto: 'Informes', icono: 'informes' },
+    { href: `${base}/admin/calendario`, texto: 'Calendario', icono: 'calendario' },
   ]
   if (esAdmin) {
     gestion.push({ href: `${base}/admin/empleados`, texto: 'Personal y centros', icono: 'personal' })

@@ -321,6 +321,43 @@ export async function decidirAusencia(_previo: unknown, form: FormData) {
 }
 
 /**
+ * Corrige una ausencia ya decidida (fecha, tipo o motivo equivocados). No la
+ * sustituye ni la borra: queda quién la corrigió, cuándo y por qué.
+ */
+export async function editarAusencia(_previo: unknown, form: FormData) {
+  await requerirPerfil()
+
+  const id = String(form.get('id') ?? '')
+  const tipo = String(form.get('tipo') ?? '') as TipoAusencia
+  const desde = String(form.get('desde') ?? '')
+  const hasta = String(form.get('hasta') ?? '')
+  const motivo = String(form.get('motivo') ?? '')
+  const nota = String(form.get('nota') ?? '')
+
+  if (!id) return { error: 'Ausencia no válida' }
+  if (!TIPOS_AUSENCIA.includes(tipo)) return { error: 'Tipo de ausencia no válido' }
+  if (!FECHA_ISO.test(desde) || !FECHA_ISO.test(hasta)) return { error: 'Indica las fechas' }
+  if (hasta < desde) return { error: 'La fecha de fin es anterior a la de inicio' }
+  if (nota.trim().length < 3) return { error: 'Editar una ausencia necesita un motivo' }
+
+  const supabase = createClient()
+  const { error } = await supabase.rpc('ausencia_editar', {
+    p_ausencia: id,
+    p_tipo: tipo,
+    p_desde: desde,
+    p_hasta: hasta,
+    p_motivo: motivo || null,
+    p_nota: nota,
+  })
+  if (error) return { error: limpiarError(error.message) }
+
+  revalidatePath('/turnos')
+  revalidatePath('/admin')
+  revalidatePath('/admin/ausencias')
+  return { ok: 'Ausencia corregida' }
+}
+
+/**
  * URL temporal para ver un justificante. El bucket es privado: puede contener
  * un parte médico, así que nunca se sirve por enlace permanente.
  */

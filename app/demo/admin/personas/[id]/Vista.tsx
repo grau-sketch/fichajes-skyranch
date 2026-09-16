@@ -14,6 +14,7 @@ import {
 } from '@/lib/jornada'
 import {
   decidirAusenciaDemo,
+  editarAusenciaDemo,
   guardarPersonaDemo,
   solicitarAusenciaDemo,
 } from '@/lib/demoEstado'
@@ -76,6 +77,21 @@ export default function Vista({ id }: { id: string }) {
             String(form.get('id')),
             String(form.get('estado')) as 'aprobada' | 'rechazada' | 'cancelada',
             String(form.get('nota') ?? ''),
+            e.admin,
+          ),
+        ),
+      editar: (form: FormData) =>
+        aplicar((e) =>
+          editarAusenciaDemo(
+            e,
+            {
+              id: String(form.get('id')),
+              tipo: String(form.get('tipo')) as TipoAusencia,
+              desde: String(form.get('desde')),
+              hasta: String(form.get('hasta')),
+              motivo: String(form.get('motivo') ?? ''),
+              nota: String(form.get('nota') ?? ''),
+            },
             e.admin,
           ),
         ),

@@ -131,6 +131,7 @@ export const ETIQUETA_AVISO = {
   fichaje_corregido: 'Fichaje corregido',
   ausencia_pendiente: 'Solicitud de ausencia',
   ausencia_decidida: 'Ausencia resuelta',
+  ausencia_editada: 'Ausencia corregida',
   resumen_encargado: 'Resumen',
 } as const
 

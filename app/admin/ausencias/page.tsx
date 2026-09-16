@@ -15,7 +15,8 @@ export default async function Ausencias({
 }: {
   searchParams: { empleado?: string }
 }) {
-  await requerirGestor()
+  const gestor = await requerirGestor()
+  const esAdmin = gestor.rol === 'admin'
   const supabase = createClient()
   const anio = Number(hoyLocal().slice(0, 4))
 
@@ -46,7 +47,12 @@ export default async function Ausencias({
           {pendientes.length === 0 ? (
             <p className="vacio">No hay solicitudes esperando</p>
           ) : (
-            <ListaAusencias ausencias={pendientes} nombrePor={nombrePor} puedeDecidir />
+            <ListaAusencias
+              ausencias={pendientes}
+              nombrePor={nombrePor}
+              puedeDecidir
+              puedeEditar={esAdmin}
+            />
           )}
         </div>
 
@@ -125,7 +131,12 @@ export default async function Ausencias({
             <h2>Historial del año</h2>
             <span className="mini suave">{ausencias.length}</span>
           </header>
-          <ListaAusencias ausencias={ausencias} nombrePor={nombrePor} puedeDecidir />
+          <ListaAusencias
+            ausencias={ausencias}
+            nombrePor={nombrePor}
+            puedeDecidir
+            puedeEditar={esAdmin}
+          />
         </div>
       </main>
     </>

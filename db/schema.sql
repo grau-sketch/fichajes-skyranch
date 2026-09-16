@@ -200,6 +200,13 @@ create table if not exists ausencias (
   constraint ausencias_rango check (hasta >= desde)
 );
 
+-- Corrección de una ausencia ya decidida (fechas, tipo o motivo equivocados).
+-- No se borra ni se sustituye: se anota quién la corrigió y por qué, igual que
+-- las correcciones de fichajes.
+alter table ausencias add column if not exists editado_por uuid references perfiles(id) on delete set null;
+alter table ausencias add column if not exists editado_en timestamptz;
+alter table ausencias add column if not exists nota_edicion text;
+
 create index if not exists ausencias_empleado_idx on ausencias (empleado_id, desde desc);
 create index if not exists ausencias_rango_idx on ausencias (desde, hasta);
 create index if not exists ausencias_estado_idx on ausencias (estado) where estado = 'pendiente';
@@ -264,6 +271,7 @@ alter table avisos add constraint avisos_tipo_check check (tipo in (
   'fichaje_corregido',      -- al empleado: su responsable tocó un fichaje
   'ausencia_pendiente',     -- al responsable: hay una solicitud que decidir
   'ausencia_decidida',      -- al empleado: aprobada o rechazada
+  'ausencia_editada',       -- al empleado: su responsable corrigió una ausencia
   'resumen_encargado'
 ));
 
@@ -749,6 +757,80 @@ begin
   return v_row;
 end $$;
 
+-- Corregir una ausencia que ya se decidió (fecha, tipo o motivo equivocados).
+-- Solo el administrador (a diferencia de aprobar/rechazar, que también puede
+-- un encargado), y con motivo obligatorio: es la misma exigencia de
+-- trazabilidad que las correcciones de fichajes. No se puede editar una
+-- cancelada porque ya no representa nada vigente.
+create or replace function ausencia_editar(
+  p_ausencia uuid,
+  p_tipo     text,
+  p_desde    date,
+  p_hasta    date,
+  p_motivo   text,
+  p_nota     text
+) returns ausencias
+language plpgsql security definer set search_path = public as $$
+declare v_row ausencias;
+begin
+  select * into v_row from ausencias where id = p_ausencia;
+  if v_row.id is null then raise exception 'La ausencia no existe'; end if;
+
+  -- A diferencia de aprobar/rechazar, corregir una ausencia ya decidida es
+  -- solo cosa del administrador; un encargado no la puede editar.
+  if not es_admin() then
+    raise exception 'Solo un administrador puede editar esta ausencia';
+  end if;
+  if v_row.estado = 'cancelada' then
+    raise exception 'No se puede editar una ausencia cancelada';
+  end if;
+  if p_hasta < p_desde then
+    raise exception 'La fecha de fin es anterior a la de inicio';
+  end if;
+  if p_hasta - p_desde > 180 then
+    raise exception 'El periodo es demasiado largo (máximo 6 meses)';
+  end if;
+  if p_nota is null or length(trim(p_nota)) < 3 then
+    raise exception 'Editar una ausencia necesita un motivo';
+  end if;
+
+  -- Dos ausencias vigentes no pueden solaparse (excluyendo esta misma).
+  if exists (
+    select 1 from ausencias a
+    where a.id <> p_ausencia
+      and a.empleado_id = v_row.empleado_id
+      and a.estado in ('pendiente','aprobada')
+      and a.desde <= p_hasta and a.hasta >= p_desde
+  ) then
+    raise exception 'Ya hay otra ausencia en esas fechas';
+  end if;
+
+  update ausencias
+  set tipo = p_tipo,
+      desde = p_desde,
+      hasta = p_hasta,
+      motivo = nullif(trim(p_motivo), ''),
+      editado_por = auth.uid(),
+      editado_en = now(),
+      nota_edicion = trim(p_nota)
+  where id = p_ausencia
+  returning * into v_row;
+
+  if v_row.empleado_id <> auth.uid() then
+    perform avisar_empleado(
+      v_row.empleado_id, null, 'ausencia_editada',
+      'Se corrigió tu ausencia',
+      format('%s del %s al %s. Motivo: %s',
+             initcap(replace(v_row.tipo, '_', ' ')),
+             to_char(v_row.desde, 'DD/MM/YYYY'),
+             to_char(v_row.hasta, 'DD/MM/YYYY'),
+             v_row.nota_edicion)
+    );
+  end if;
+
+  return v_row;
+end $$;
+
 -- Parte de trabajo del día: lo escribe la propia persona.
 create or replace function parte_guardar(p_fecha date, p_texto text)
 returns partes_trabajo
@@ -993,6 +1075,8 @@ revoke all on function ausencia_solicitar(text, date, date, text, uuid, text) fr
 grant execute on function ausencia_solicitar(text, date, date, text, uuid, text) to authenticated;
 revoke all on function ausencia_decidir(uuid, text, text) from public, anon;
 grant execute on function ausencia_decidir(uuid, text, text) to authenticated;
+revoke all on function ausencia_editar(uuid, text, date, date, text, text) from public, anon;
+grant execute on function ausencia_editar(uuid, text, date, date, text, text) to authenticated;
 revoke all on function parte_guardar(date, text) from public, anon;
 grant execute on function parte_guardar(date, text) to authenticated;
 -- La purga la llama la tarea programada con service_role, no el cliente.

@@ -83,6 +83,12 @@ si falta un fichaje. Se instala desde un enlace, sin tiendas de apps.
 16. **La app arranca sin Supabase.** `lib/supabase/configurado.ts` decide: si
     faltan las variables, el middleware manda todo a `/demo`. Cualquier código
     nuevo que consulte Supabase en el arranque debe respetar esa comprobación.
+17. **El calendario de Google es de solo lectura, a propósito.** La cuenta de
+    servicio (`lib/googleCalendar.ts`) solo tiene permiso de "Ver todos los
+    detalles del evento" en Google Calendar — el calendario se sigue
+    gestionando a mano ahí. No añadas escritura (crear/editar eventos) sin
+    hablarlo primero: cambiaría el permiso que se le dio a la cuenta de
+    servicio y el modelo de quién es dueño de esos datos.
 
 ## Modelo de datos
 `centros` (lat/lon/radio_m/tz) · `perfiles` (1:1 con auth.users; rol
@@ -286,7 +292,11 @@ movimientos) e impresión a PDF, correcciones trazadas (añadir, corregir,
 anular), ficha de cada persona editable desde Equipo, alta de trabajadores y
 cambio de contraseña desde la app, centros con búsqueda de dirección y captura de
 coordenadas por GPS, avisos push (al trabajador y al responsable) con cron, PWA
-instalable con service worker.
+instalable con service worker, corrección de ausencias ya decididas
+(`ausencia_editar`, motivo obligatorio, solo administrador), calendario de la
+finca sincronizado en solo lectura desde Google Calendar
+(`lib/googleCalendar.ts`, `/admin/calendario`), panel `/admin/inicio` con el
+resumen del día (equipo ahora, eventos de hoy, pendientes).
 
 **Pendiente (orden sugerido):**
 1. Confirmación de horario por parte del trabajador y solicitud de cambio.

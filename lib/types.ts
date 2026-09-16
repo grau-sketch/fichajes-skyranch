@@ -94,6 +94,9 @@ export type Ausencia = {
   decidido_por: string | null
   decidido_en: string | null
   nota_decision: string | null
+  editado_por: string | null
+  editado_en: string | null
+  nota_edicion: string | null
 }
 
 export type ParteTrabajo = {
@@ -112,6 +115,7 @@ export type TipoAviso =
   | 'fichaje_corregido'
   | 'ausencia_pendiente'
   | 'ausencia_decidida'
+  | 'ausencia_editada'
   | 'resumen_encargado'
 
 export type Aviso = {

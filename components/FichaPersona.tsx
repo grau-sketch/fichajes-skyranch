@@ -331,7 +331,12 @@ export default function FichaPersona({
           <h2>Ausencias</h2>
           <span className="mini suave">{ausencias.length} este año</span>
         </header>
-        <ListaAusencias ausencias={ausencias} puedeDecidir demo={demo?.ausencias} />
+        <ListaAusencias
+          ausencias={ausencias}
+          puedeDecidir
+          puedeEditar={esAdmin}
+          demo={demo?.ausencias}
+        />
 
         <details style={{ marginTop: 16 }}>
           <summary className="desplegable">Registrar una ausencia</summary>
