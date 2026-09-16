@@ -156,6 +156,9 @@ export function ficharDemo(
     anulado_en: null,
     motivo_anulacion: null,
     corrige_a: null,
+    justificacion: null,
+    justificado_por: null,
+    justificado_en: null,
     creado_en: new Date().toISOString(),
   }
 
@@ -225,6 +228,33 @@ export function anularDemo(
       ],
     },
     mensaje: 'Fichaje anulado',
+  }
+}
+
+export function justificarDemo(
+  e: EstadoDemo,
+  fichajeId: string,
+  nota: string,
+  porId: string,
+): Resultado {
+  const f = e.fichajes.find((x) => x.id === fichajeId)
+  if (!f) return { ok: false, error: 'El fichaje no existe' }
+  if (nota.trim().length < 3) return { ok: false, error: 'Justificar un fichaje necesita una nota' }
+
+  const justificado: Fichaje = {
+    ...f,
+    justificado_por: porId,
+    justificado_en: new Date().toISOString(),
+    justificacion: nota.trim(),
+  }
+
+  return {
+    ok: true,
+    estado: {
+      ...e,
+      fichajes: e.fichajes.map((x) => (x.id === fichajeId ? justificado : x)),
+    },
+    mensaje: 'Fichaje justificado',
   }
 }
 
@@ -327,6 +357,9 @@ export function fichajeManualDemo(
     anulado_en: null,
     motivo_anulacion: null,
     corrige_a: null,
+    justificacion: null,
+    justificado_por: null,
+    justificado_en: null,
     creado_en: ahora,
   }
 

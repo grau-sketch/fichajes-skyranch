@@ -7,7 +7,7 @@ import Formulario from '@/components/Formulario'
 import { ETIQUETA_TIPO, TIPOS_FICHAJE, TZ, type TipoFichaje } from '@/lib/constants'
 import { HOY } from '@/lib/demo'
 import { diasAusentes } from '@/lib/ausencias'
-import { anularDemo, corregirDemo, fichajeManualDemo } from '@/lib/demoEstado'
+import { anularDemo, corregirDemo, fichajeManualDemo, justificarDemo } from '@/lib/demoEstado'
 import { fechaLocal, finMes, formatHoras, inicioMes } from '@/lib/fechas'
 import { agruparJornadas, minutosTurno, turnosSinFichar } from '@/lib/jornada'
 
@@ -78,6 +78,10 @@ export default function Vista() {
     anular: (form: FormData) =>
       aplicar((e) =>
         anularDemo(e, String(form.get('id')), String(form.get('motivo') ?? ''), e.admin),
+      ),
+    justificar: (form: FormData) =>
+      aplicar((e) =>
+        justificarDemo(e, String(form.get('id')), String(form.get('nota') ?? ''), e.admin),
       ),
   }
 
@@ -166,6 +170,7 @@ export default function Vista() {
             b={b}
             nombrePor={nombrePor}
             tz={TZ}
+            esAdmin
             demo={acciones}
           />
         ))}

@@ -20,7 +20,8 @@ export default async function Informes({
 }: {
   searchParams: { desde?: string; hasta?: string; empleado?: string }
 }) {
-  await requerirGestor()
+  const gestor = await requerirGestor()
+  const esAdmin = gestor.rol === 'admin'
   const supabase = createClient()
 
   const hoy = hoyLocal()
@@ -180,7 +181,7 @@ export default async function Informes({
         {bloques.length === 0 && <p className="vacio">Sin datos en este periodo</p>}
 
         {bloques.map((b) => (
-          <BloqueInforme key={b.perfil.id} b={b} nombrePor={nombrePor} tz={TZ} />
+          <BloqueInforme key={b.perfil.id} b={b} nombrePor={nombrePor} tz={TZ} esAdmin={esAdmin} />
         ))}
 
         <details className="tarjeta no-imprimir">

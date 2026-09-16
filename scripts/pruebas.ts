@@ -60,6 +60,9 @@ function f(tipo: Fichaje['tipo'], ts: string, extra: Partial<Fichaje> = {}): Fic
     anulado_en: null,
     motivo_anulacion: null,
     corrige_a: null,
+    justificacion: null,
+    justificado_por: null,
+    justificado_en: null,
     creado_en: ts,
     ...extra,
   }

@@ -51,6 +51,10 @@ export type Fichaje = {
   motivo_anulacion: string | null
   /** Si es una corrección, el id del fichaje que sustituye. */
   corrige_a: string | null
+  /** Nota interna del administrador, normalmente sobre un fichaje fuera de radio. */
+  justificacion: string | null
+  justificado_por: string | null
+  justificado_en: string | null
   /** Cuándo llegó a la base (distinto de `ts` en fichajes offline o manuales). */
   creado_en: string
 }

@@ -1,4 +1,4 @@
-import { anularFichaje, corregirHora } from '@/app/actions'
+import { anularFichaje, corregirHora, justificarFichaje } from '@/app/actions'
 import Formulario from '@/components/Formulario'
 import { ETIQUETA_ORIGEN, ETIQUETA_TIPO, TIPOS_FICHAJE } from '@/lib/constants'
 import { fechaLocal, formatFechaCorta, formatFechaLarga, horaLocal } from '@/lib/fechas'
@@ -15,16 +15,20 @@ export default function HistorialFichajes({
   nombrePor,
   tz,
   editable = true,
+  esAdmin = false,
   demo,
 }: {
   fichajes: Fichaje[]
   nombrePor: Record<string, string>
   tz: string
   editable?: boolean
+  /** La nota de un fichaje fuera de radio solo la ve y la pone el administrador. */
+  esAdmin?: boolean
   /** Manejadores locales de la demo. El FormData lleva ya el id del fichaje. */
   demo?: {
     corregir: (form: FormData) => { ok?: string; error?: string }
     anular: (form: FormData) => { ok?: string; error?: string }
+    justificar?: (form: FormData) => { ok?: string; error?: string }
   }
 }) {
   if (fichajes.length === 0) {
@@ -102,6 +106,10 @@ export default function HistorialFichajes({
                       {f.editado_por && ` por ${nombrePor[f.editado_por] ?? 'un responsable'}`}
                       {f.nota && ` · «${f.nota}»`}
                     </p>
+                  )}
+
+                  {esAdmin && f.justificacion && (
+                    <p className="mini suave">Nota interna: «{f.justificacion}»</p>
                   )}
 
                   {anulado && (
@@ -198,6 +206,38 @@ export default function HistorialFichajes({
                           </Formulario>
                         </div>
                       </details>
+
+                      {esAdmin && f.dentro_radio === false && (
+                        <details style={{ flex: '1 1 auto' }}>
+                          <summary className="mini" style={{ cursor: 'pointer' }}>
+                            {f.justificacion ? 'Cambiar nota' : 'Justificar'}
+                          </summary>
+                          <div style={{ marginTop: 10 }}>
+                            <p className="mini suave" style={{ marginBottom: 8 }}>
+                              Solo la ves tú: no cambia el registro ni avisa a la persona.
+                            </p>
+                            <Formulario
+                              accion={justificarFichaje}
+                              boton="Guardar nota"
+                              botonClase="btn mini"
+                              demo={demo?.justificar}
+                            >
+                              <input type="hidden" name="id" value={f.id} />
+                              <div>
+                                <label htmlFor={`jn-${f.id}`}>Nota</label>
+                                <input
+                                  id={`jn-${f.id}`}
+                                  name="nota"
+                                  required
+                                  minLength={3}
+                                  defaultValue={f.justificacion ?? ''}
+                                  placeholder="El GPS falla en esa esquina de la finca"
+                                />
+                              </div>
+                            </Formulario>
+                          </div>
+                        </details>
+                      )}
                     </div>
                   )}
                 </div>

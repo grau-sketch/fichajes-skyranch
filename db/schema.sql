@@ -103,6 +103,12 @@ alter table fichajes add column if not exists anulado_por uuid references perfil
 alter table fichajes add column if not exists anulado_en timestamptz;
 alter table fichajes add column if not exists motivo_anulacion text;
 alter table fichajes add column if not exists corrige_a uuid references fichajes(id) on delete set null;
+-- Nota interna del administrador sobre un fichaje fuera de radio. No cambia
+-- el registro legal (ts, distancia, dentro_radio siguen igual) y no se le
+-- avisa a la persona: es una anotación de gestión, no una corrección.
+alter table fichajes add column if not exists justificacion text;
+alter table fichajes add column if not exists justificado_por uuid references perfiles(id) on delete set null;
+alter table fichajes add column if not exists justificado_en timestamptz;
 
 create index if not exists fichajes_empleado_ts_idx on fichajes (empleado_id, ts desc);
 create index if not exists fichajes_ts_idx on fichajes (ts desc);
@@ -565,6 +571,35 @@ begin
            hora_local_txt(v_row.ts, v_row.centro_id),
            trim(p_motivo))
   );
+
+  return v_row;
+end $$;
+
+-- Nota interna sobre un fichaje (normalmente uno fuera de radio): no toca el
+-- registro legal, solo lo anota para quien revisa. Sin aviso a la persona:
+-- es un apunte del administrador, no una corrección de su fichaje.
+create or replace function fichaje_justificar(
+  p_fichaje uuid,
+  p_nota    text
+) returns fichajes
+language plpgsql security definer set search_path = public as $$
+declare v_row fichajes;
+begin
+  select * into v_row from fichajes where id = p_fichaje;
+  if v_row.id is null then raise exception 'El fichaje no existe'; end if;
+  if not es_admin() then
+    raise exception 'Solo un administrador puede justificar un fichaje';
+  end if;
+  if p_nota is null or length(trim(p_nota)) < 3 then
+    raise exception 'Justificar un fichaje necesita una nota';
+  end if;
+
+  update fichajes
+  set justificado_por = auth.uid(),
+      justificado_en = now(),
+      justificacion = trim(p_nota)
+  where id = p_fichaje
+  returning * into v_row;
 
   return v_row;
 end $$;
@@ -1079,6 +1114,8 @@ revoke all on function generar_turnos(uuid, date, date) from public, anon;
 grant execute on function generar_turnos(uuid, date, date) to authenticated;
 revoke all on function fichaje_anular(uuid, text) from public, anon;
 grant execute on function fichaje_anular(uuid, text) to authenticated;
+revoke all on function fichaje_justificar(uuid, text) from public, anon;
+grant execute on function fichaje_justificar(uuid, text) to authenticated;
 revoke all on function fichaje_corregir(uuid, timestamptz, text, text) from public, anon;
 grant execute on function fichaje_corregir(uuid, timestamptz, text, text) to authenticated;
 -- Estas dos las llaman otras funciones, nunca el cliente.

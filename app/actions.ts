@@ -214,6 +214,29 @@ export async function anularFichaje(_previo: unknown, form: FormData) {
   return { ok: 'Fichaje anulado' }
 }
 
+/**
+ * Nota interna del administrador sobre un fichaje (normalmente fuera de
+ * radio). No cambia el registro ni avisa a la persona.
+ */
+export async function justificarFichaje(_previo: unknown, form: FormData) {
+  await requerirGestor()
+  const id = String(form.get('id') ?? '')
+  const nota = String(form.get('nota') ?? '')
+  if (!id) return { error: 'Fichaje no válido' }
+  if (nota.trim().length < 3) return { error: 'Indica la nota' }
+
+  const supabase = createClient()
+  const { error } = await supabase.rpc('fichaje_justificar', {
+    p_fichaje: id,
+    p_nota: nota,
+  })
+  if (error) return { error: limpiarError(error.message) }
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/informes')
+  return { ok: 'Fichaje justificado' }
+}
+
 export async function corregirHora(_previo: unknown, form: FormData) {
   await requerirGestor()
   const id = String(form.get('id') ?? '')

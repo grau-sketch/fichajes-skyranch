@@ -28,15 +28,18 @@ export default function BloqueInforme({
   nombrePor,
   tz,
   editable = true,
+  esAdmin = false,
   demo,
 }: {
   b: BloqueDatos
   nombrePor: Record<string, string>
   tz: string
   editable?: boolean
+  esAdmin?: boolean
   demo?: {
     corregir: (form: FormData) => { ok?: string; error?: string }
     anular: (form: FormData) => { ok?: string; error?: string }
+    justificar?: (form: FormData) => { ok?: string; error?: string }
   }
 }) {
   return (
@@ -161,6 +164,7 @@ export default function BloqueInforme({
           nombrePor={nombrePor}
           tz={tz}
           editable={editable}
+          esAdmin={esAdmin}
           demo={demo}
         />
       </details>
