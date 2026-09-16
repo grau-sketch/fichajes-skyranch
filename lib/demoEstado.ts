@@ -647,18 +647,23 @@ export function decidirAusenciaDemo(
 ): Resultado {
   const a = e.ausencias.find((x) => x.id === ausenciaId)
   if (!a) return { ok: false, error: 'La ausencia no existe' }
+
+  const autocancela = estado === 'cancelada' && a.empleado_id === porId && a.estado === 'pendiente'
+  if (estado === 'cancelada' && !autocancela && porId !== e.admin) {
+    return { ok: false, error: 'Solo un administrador puede anular esta ausencia' }
+  }
   if (estado === 'rechazada' && nota.trim().length < 3) {
     return { ok: false, error: 'Rechazar una solicitud necesita motivo' }
   }
-  if (estado === 'cancelada' && a.estado !== 'pendiente') {
-    return { ok: false, error: 'Solo puedes cancelar una solicitud que siga pendiente' }
+  if (estado === 'cancelada' && !autocancela && nota.trim().length < 3) {
+    return { ok: false, error: 'Anular una ausencia necesita un motivo' }
   }
 
   const ahora = new Date().toISOString()
   const etiquetas: Record<string, string> = {
     aprobada: 'Ausencia aprobada',
     rechazada: 'Solicitud rechazada',
-    cancelada: 'Solicitud cancelada',
+    cancelada: autocancela ? 'Solicitud cancelada' : 'Ausencia anulada',
   }
 
   return {

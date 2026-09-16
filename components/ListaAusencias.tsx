@@ -54,9 +54,11 @@ export default function ListaAusencias({
           <div key={a.id} className="columna" style={{ gap: 6, padding: '12px 0' }}>
             <div className="fila entre" style={{ gap: 8 }}>
               <div className="crece">
-                <p style={{ fontWeight: 550 }}>
-                  {ETIQUETA_AUSENCIA[a.tipo]}
-                  {nombrePor && ` · ${nombrePor[a.empleado_id] ?? 'alguien'}`}
+                <p className="fila" style={{ gap: 6, fontWeight: 550 }}>
+                  <span className={`pill ${a.tipo === 'vacaciones' ? 'marca' : ''} mini`}>
+                    {ETIQUETA_AUSENCIA[a.tipo]}
+                  </span>
+                  {nombrePor && ` ${nombrePor[a.empleado_id] ?? 'alguien'}`}
                 </p>
                 <p className="mini suave mono">
                   {formatFechaCorta(a.desde)}
@@ -191,6 +193,39 @@ export default function ListaAusencias({
                         required
                         minLength={3}
                         placeholder="Se registró un día de más por error"
+                      />
+                    </div>
+                  </Formulario>
+                </div>
+              </details>
+            )}
+
+            {puedeEditar && a.estado !== 'cancelada' && (
+              <details className="no-imprimir">
+                <summary className="mini" style={{ cursor: 'pointer', color: 'var(--error)' }}>
+                  Anular
+                </summary>
+                <div style={{ marginTop: 10 }}>
+                  <p className="mini suave" style={{ marginBottom: 8 }}>
+                    Deja de contar para las horas, pero queda en el historial con el motivo.
+                  </p>
+                  <Formulario
+                    accion={decidirAusencia}
+                    boton="Anular ausencia"
+                    botonClase="btn peligro"
+                    confirmar="¿Anular esta ausencia?"
+                    demo={demo?.decidir}
+                  >
+                    <input type="hidden" name="id" value={a.id} />
+                    <input type="hidden" name="estado" value="cancelada" />
+                    <div>
+                      <label htmlFor={`nota-anular-${a.id}`}>Motivo</label>
+                      <input
+                        id={`nota-anular-${a.id}`}
+                        name="nota"
+                        required
+                        minLength={3}
+                        placeholder="Se dio de alta por error"
                       />
                     </div>
                   </Formulario>

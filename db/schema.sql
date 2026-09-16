@@ -704,14 +704,16 @@ begin
   return v_row;
 end $$;
 
--- Aprobar o rechazar. Solo responsables.
+-- Aprobar o rechazar (responsables) o anular (empleado si sigue pendiente;
+-- si no, solo administrador, con motivo obligatorio — es lo más parecido a
+-- "eliminar" una ausencia que se permite, sin perder el rastro).
 create or replace function ausencia_decidir(
   p_ausencia uuid,
   p_estado   text,
   p_nota     text default null
 ) returns ausencias
 language plpgsql security definer set search_path = public as $$
-declare v_row ausencias;
+declare v_row ausencias; v_autocancela boolean;
 begin
   if p_estado not in ('aprobada','rechazada','cancelada') then
     raise exception 'Decisión no válida';
@@ -720,10 +722,15 @@ begin
   select * into v_row from ausencias where id = p_ausencia;
   if v_row.id is null then raise exception 'La ausencia no existe'; end if;
 
-  -- La propia persona puede cancelar lo que aún está pendiente.
-  if p_estado = 'cancelada' and v_row.empleado_id = auth.uid() then
-    if v_row.estado <> 'pendiente' then
-      raise exception 'Solo puedes cancelar una solicitud que siga pendiente';
+  v_autocancela := p_estado = 'cancelada' and v_row.empleado_id = auth.uid() and v_row.estado = 'pendiente';
+
+  if v_autocancela then
+    null; -- la propia persona retira su solicitud mientras siga pendiente
+  elsif p_estado = 'cancelada' then
+    -- Anular una ausencia ya decidida (o la de otra persona) es distinto de
+    -- aprobar/rechazar: solo el administrador, igual que editarla.
+    if not es_admin() then
+      raise exception 'Solo un administrador puede anular esta ausencia';
     end if;
   elsif not (es_admin() or (mi_rol() = 'encargado' and puedo_ver_empleado(v_row.empleado_id))) then
     raise exception 'No tienes permiso para decidir esta ausencia';
@@ -731,6 +738,9 @@ begin
 
   if p_estado = 'rechazada' and (p_nota is null or length(trim(p_nota)) < 3) then
     raise exception 'Rechazar una solicitud necesita motivo';
+  end if;
+  if p_estado = 'cancelada' and not v_autocancela and (p_nota is null or length(trim(p_nota)) < 3) then
+    raise exception 'Anular una ausencia necesita un motivo';
   end if;
 
   update ausencias
@@ -744,7 +754,11 @@ begin
   if v_row.empleado_id <> auth.uid() then
     perform avisar_empleado(
       v_row.empleado_id, null, 'ausencia_decidida',
-      case when p_estado = 'aprobada' then 'Ausencia aprobada' else 'Ausencia rechazada' end,
+      case p_estado
+        when 'aprobada' then 'Ausencia aprobada'
+        when 'rechazada' then 'Ausencia rechazada'
+        else 'Ausencia anulada'
+      end,
       format('%s del %s al %s: %s.%s',
              initcap(replace(v_row.tipo, '_', ' ')),
              to_char(v_row.desde, 'DD/MM/YYYY'),
