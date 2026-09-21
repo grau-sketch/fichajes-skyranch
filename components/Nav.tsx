@@ -37,6 +37,21 @@ const ICONOS = {
       <path d="M16.5 6.2a3 3 0 0 1 0 5.6M18 14.8c1.6.8 2.6 2.4 2.6 4.4" />
     </svg>
   ),
+  inicio: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 11.5 12 4l8 7.5" />
+      <path d="M6 10v9.5h12V10" />
+    </svg>
+  ),
+  calendario: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+      <path d="M7 3v3.5M17 3v3.5M3.5 10h17" />
+      <circle cx="8.5" cy="14.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="14.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8.5" cy="17.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  ),
 } as const
 
 export default function Nav({ rol, base = '' }: { rol: Rol; base?: string }) {
@@ -49,10 +64,12 @@ export default function Nav({ rol, base = '' }: { rol: Rol; base?: string }) {
   const enlaces: { href: string; texto: string; icono: keyof typeof ICONOS }[] =
     rol === 'admin'
       ? [
+          { href: `${base}/admin/inicio`, texto: 'Inicio', icono: 'inicio' },
           { href: `${base}/admin`, texto: 'Equipo', icono: 'equipo' },
           { href: `${base}/admin/turnos`, texto: 'Turnos', icono: 'jornadas' },
           { href: `${base}/admin/ausencias`, texto: 'Ausencias', icono: 'ausencias' },
           { href: `${base}/admin/informes`, texto: 'Informes', icono: 'turnos' },
+          { href: `${base}/admin/calendario`, texto: 'Calendario', icono: 'calendario' },
         ]
       : [
           { href: `${base}/fichar`, texto: 'Fichar', icono: 'fichar' },

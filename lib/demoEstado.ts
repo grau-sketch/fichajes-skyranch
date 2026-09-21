@@ -614,11 +614,15 @@ export function solicitarAusenciaDemo(
   if (datos.tipo === 'falta' && !datos.comoGestor) {
     return { ok: false, error: 'Solo un responsable puede registrar una falta' }
   }
+  if (datos.tipo === 'media_jornada' && !datos.comoGestor) {
+    return { ok: false, error: 'Solo un responsable puede anotar una media jornada' }
+  }
   if (
     e.ausencias.some(
       (a) =>
         a.empleado_id === datos.empleado_id &&
         (a.estado === 'pendiente' || a.estado === 'aprobada') &&
+        a.tipo !== 'media_jornada' &&
         a.desde <= datos.hasta &&
         a.hasta >= datos.desde,
     )
@@ -760,6 +764,7 @@ export function editarAusenciaDemo(
         x.id !== datos.id &&
         x.empleado_id === a.empleado_id &&
         (x.estado === 'pendiente' || x.estado === 'aprobada') &&
+        x.tipo !== 'media_jornada' &&
         x.desde <= datos.hasta &&
         x.hasta >= datos.desde,
     )

@@ -55,6 +55,7 @@ export const TIPOS_AUSENCIA = [
   'permiso',
   'asuntos_propios',
   'falta',
+  'media_jornada',
 ] as const
 export type TipoAusencia = (typeof TIPOS_AUSENCIA)[number]
 
@@ -64,6 +65,7 @@ export const ETIQUETA_AUSENCIA: Record<TipoAusencia, string> = {
   permiso: 'Permiso',
   asuntos_propios: 'Asuntos propios',
   falta: 'Falta',
+  media_jornada: 'Media jornada',
 }
 
 /** Lo que puede pedir la propia persona; la falta la registra el responsable. */

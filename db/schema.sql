@@ -183,13 +183,7 @@ $$;
 create table if not exists ausencias (
   id            uuid primary key default gen_random_uuid(),
   empleado_id   uuid not null references perfiles(id) on delete cascade,
-  tipo          text not null check (tipo in (
-                  'vacaciones',      -- las pide la persona, las aprueba el responsable
-                  'baja',            -- baja médica
-                  'permiso',         -- permiso retribuido
-                  'asuntos_propios',
-                  'falta'            -- ausencia no justificada: la registra el responsable
-                )),
+  tipo          text not null,
   desde         date not null,
   hasta         date not null,
   motivo        text,
@@ -212,6 +206,19 @@ create table if not exists ausencias (
 alter table ausencias add column if not exists editado_por uuid references perfiles(id) on delete set null;
 alter table ausencias add column if not exists editado_en timestamptz;
 alter table ausencias add column if not exists nota_edicion text;
+
+-- Tipos de ausencia. "media_jornada" es solo una nota del administrador (esa
+-- persona trabajó medio día por lo que sea): no reduce el objetivo de horas
+-- ni descuenta días de vacaciones, a propósito — ver lib/ausencias.ts `cuenta`.
+alter table ausencias drop constraint if exists ausencias_tipo_check;
+alter table ausencias add constraint ausencias_tipo_check check (tipo in (
+  'vacaciones',      -- las pide la persona, las aprueba el responsable
+  'baja',            -- baja médica
+  'permiso',         -- permiso retribuido
+  'asuntos_propios',
+  'falta',           -- ausencia no justificada: la registra el responsable
+  'media_jornada'    -- nota de que ese día trabajó solo media jornada
+));
 
 create index if not exists ausencias_empleado_idx on ausencias (empleado_id, desde desc);
 create index if not exists ausencias_rango_idx on ausencias (desde, hasta);
@@ -693,6 +700,9 @@ begin
   if p_tipo = 'falta' and not v_gestor then
     raise exception 'Solo un responsable puede registrar una falta';
   end if;
+  if p_tipo = 'media_jornada' and not v_gestor then
+    raise exception 'Solo un responsable puede anotar una media jornada';
+  end if;
   if p_hasta < p_desde then
     raise exception 'La fecha de fin es anterior a la de inicio';
   end if;
@@ -700,11 +710,13 @@ begin
     raise exception 'El periodo es demasiado largo (máximo 6 meses)';
   end if;
 
-  -- Dos ausencias vigentes no pueden solaparse.
+  -- Dos ausencias vigentes no pueden solaparse. "media_jornada" es solo una
+  -- nota y no bloquea nada.
   if exists (
     select 1 from ausencias a
     where a.empleado_id = v_para
       and a.estado in ('pendiente','aprobada')
+      and a.tipo <> 'media_jornada'
       and a.desde <= p_hasta and a.hasta >= p_desde
   ) then
     raise exception 'Ya hay una ausencia en esas fechas';
@@ -844,11 +856,13 @@ begin
   end if;
 
   -- Dos ausencias vigentes no pueden solaparse (excluyendo esta misma).
+  -- "media_jornada" es solo una nota y no bloquea nada.
   if exists (
     select 1 from ausencias a
     where a.id <> p_ausencia
       and a.empleado_id = v_row.empleado_id
       and a.estado in ('pendiente','aprobada')
+      and a.tipo <> 'media_jornada'
       and a.desde <= p_hasta and a.hasta >= p_desde
   ) then
     raise exception 'Ya hay otra ausencia en esas fechas';

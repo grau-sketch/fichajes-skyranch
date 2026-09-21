@@ -9,8 +9,12 @@ import type { TipoAusencia } from './constants'
 import { diasEntre, sumarDias } from './fechas'
 import type { Ausencia } from './types'
 
-/** Solo lo aprobado cuenta: una solicitud pendiente no cambia el objetivo. */
-export const cuenta = (a: Ausencia) => a.estado === 'aprobada'
+/**
+ * Solo lo aprobado cuenta: una solicitud pendiente no cambia el objetivo.
+ * "media_jornada" es a propósito la excepción: es una nota de que ese día se
+ * trabajó medio, no una ausencia — no reduce el objetivo ni descuenta días.
+ */
+export const cuenta = (a: Ausencia) => a.estado === 'aprobada' && a.tipo !== 'media_jornada'
 
 /** Conjunto de días (YYYY-MM-DD) cubiertos por ausencias aprobadas del rango. */
 export function diasAusentes(
@@ -88,4 +92,5 @@ export const ABREVIA_AUSENCIA: Record<TipoAusencia, string> = {
   permiso: 'Permiso',
   asuntos_propios: 'Propios',
   falta: 'Falta',
+  media_jornada: '½ jornada',
 }
